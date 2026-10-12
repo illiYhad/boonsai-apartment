@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* สีตาม DESIGN_Boonsai_v1_reference.html (พี่หยัดอนุมัติ) */
+@theme {
+  --color-accent: #0E5A4C;
+  --color-accent-dark: #08392F;
+  --color-line-green: #06803E;
+  --color-cream: #F4F1EB;
+  --color-ink: #1D2826;
+  --color-body: #3E4A47;
+  --color-muted: #4A5653;
+  --color-subtle: #5A6663;
+  --color-line: #E2DDD3;
+  --color-line-strong: #C9C3B7;
+  --color-ok-bg: #DDF1E5;
+  --color-ok-ink: #0B5E3A;
+  --color-pet: #FCEBD2;
+  --color-pet-ink: #7A4A0E;
+  --font-head: var(--font-anuphan), sans-serif;
+  --font-sans: var(--font-plex), sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+/* อยู่ใน layer base เพื่อให้ utility เช่น text-white ชนะได้ (Tailwind v4: CSS นอก layer ชนะ utility) */
+@layer base {
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-dark);
+  }
+}
