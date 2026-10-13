@@ -12,9 +12,8 @@ const wrap = "mx-auto max-w-[1200px] px-6";
 const h2 = "m-0 font-display text-[clamp(28px,4vw,36px)] font-semibold leading-tight";
 const pill = "inline-flex min-h-13 items-center gap-2.5 rounded-full px-6 text-[17px] font-semibold no-underline";
 
-// วิดีโอ "รู้จักบุญใส": คลิปเดิม (boonsai.mp4) มีข้อความโปรฯ ก.ย. "12 ห้องสุดท้าย" ซึ่งใบงานห้ามขึ้นเว็บ → ยังไม่ใส่ไฟล์
-// พอได้คลิปใหม่ใส่ไฟล์ที่ public/media/boonsai.mp4 + poster .jpg แล้วเปลี่ยนค่านี้เป็น { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" }
-const VIDEO: { src: string; poster: string } | null = null;
+// คลิปเดิมจากพี่ไอซ์ · พี่หยัดอนุมัติ 2026-10-13 · มีข้อความโปรฯ ก.ย. ในคลิป (ยกเว้นเฉพาะตัวคลิป · ข้อความบนหน้าเว็บยังห้าม)
+const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" };
 
 // รูปที่ใช้: welcome-square เท่านั้น — poster-capy-coffee.png มีราคา "2,000" และ LINE "@boonsai.apartment" (ใบงานห้ามทั้งคู่) จึงไม่นำขึ้น
 const GALLERY: GalleryItem[] = [{ src: "/brand/welcome-square.webp", alt: "ป้ายต้อนรับ Boonsai Apartment มีคาปิบาร่า หมา และแมว", width: 1200, height: 1200 }];
