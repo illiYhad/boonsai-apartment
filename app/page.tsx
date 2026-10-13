@@ -15,8 +15,11 @@ const pill = "inline-flex min-h-13 items-center gap-2.5 rounded-full px-6 text-[
 // คลิปเดิมจากพี่ไอซ์ · พี่หยัดอนุมัติ 2026-10-13 · มีข้อความโปรฯ ก.ย. ในคลิป (ยกเว้นเฉพาะตัวคลิป · ข้อความบนหน้าเว็บยังห้าม)
 const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" };
 
-// รูปที่ใช้: welcome-square เท่านั้น — poster-capy-coffee.png มีราคา "2,000" และ LINE "@boonsai.apartment" (ใบงานห้ามทั้งคู่) จึงไม่นำขึ้น
-const GALLERY: GalleryItem[] = [{ src: "/brand/welcome-square.webp", alt: "ป้ายต้อนรับ Boonsai Apartment มีคาปิบาร่า หมา และแมว", width: 1200, height: 1200 }];
+// โปสเตอร์ใช้ฉบับที่อลิสแก้ (2,200 / @371dkpvl) · พี่หยัดอนุมัติ 2026-10-13
+const GALLERY: GalleryItem[] = [
+  { src: "/brand/welcome-square.webp", alt: "ป้ายต้อนรับ Boonsai Apartment มีคาปิบาร่า หมา และแมว", width: 1200, height: 1200 },
+  { src: "/brand/poster-capy-coffee.webp", alt: "โปสเตอร์บุญใส คาปิบาร่าถือกาแฟ ราคาเริ่มต้น 2,200 บาท/เดือน", width: 1054, height: 1492 },
+];
 
 function Icon({ d, size = 20 }: { d: React.ReactNode; size?: number }) {
   return (
@@ -258,7 +261,7 @@ export default async function Home() {
               <Placeholder label="[วิดีโอแนะนำบุญใส · รอคลิปใหม่]" className="aspect-video w-full rounded-[24px] border-2 border-dashed border-cb-tan bg-cb-photo text-sm text-[#8A6A50]" />
             )}
           </div>
-          <div className="min-w-0 flex-[1_1_300px]">
+          <div className="min-w-0 flex-[1_1_340px]">
             <Gallery items={GALLERY} />
           </div>
         </div>

@@ -22,9 +22,9 @@ export function Gallery({ items }: { items: GalleryItem[] }) {
               ref.current?.showModal();
             }}
             aria-label={`ดูรูปใหญ่: ${it.alt}`}
-            className="relative aspect-square min-h-11 cursor-zoom-in overflow-hidden rounded-[20px] border-2 border-cb-border bg-cb-photo p-0"
+            className="relative aspect-[3/4] min-h-11 cursor-zoom-in overflow-hidden rounded-[20px] border-2 border-cb-border bg-cb-photo p-0"
           >
-            <Image src={it.src} alt={it.alt} fill sizes="(max-width: 768px) 45vw, 280px" className="object-cover" />
+            <Image src={it.src} alt={it.alt} fill sizes="(max-width: 768px) 45vw, 280px" className="object-contain" />
           </button>
         ))}
       </div>
