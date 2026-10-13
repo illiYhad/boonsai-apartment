@@ -15,6 +15,9 @@ const pill = "inline-flex min-h-13 items-center gap-2.5 rounded-full px-6 text-[
 // คลิปฉบับตัดต่อใหม่ v4 (อลิส · พี่หยัดอนุมัติ 2026-10-13) · ไม่มีโปรฯ ก.ย.
 const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" };
 
+// จากเลขาพี่ไอซ์ 2026-10-13 · พี่หยัดยืนยันชั้น 1 + ต้องจองล่วงหน้า · ยังไม่อยู่ใน DB
+const DAILY = { price: 700, floor: 1 };
+
 // โปสเตอร์ใช้ฉบับที่อลิสแก้ (2,200 / @371dkpvl) · พี่หยัดอนุมัติ 2026-10-13
 const GALLERY: GalleryItem[] = [
   { src: "/brand/welcome-square.webp", alt: "ป้ายต้อนรับ Boonsai Apartment มีคาปิบาร่า หมา และแมว", width: 1200, height: 1200 },
@@ -183,6 +186,27 @@ export default async function Home() {
                 <div className="font-semibold">{f.value}</div>
               </div>
             ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border-2 border-cb-border bg-cb-cream px-5 py-4.5">
+            <div className="flex flex-col gap-0.5">
+              <div className="font-display text-[22px] font-semibold">ห้องพักรายวัน</div>
+              <div className="font-display text-[32px] font-semibold leading-tight text-cb-orange">
+                {fmt(DAILY.price)} <span className="font-sans text-base font-normal text-cb-muted">บาท / วัน</span>
+              </div>
+              <div className="text-[15px] text-cb-text">
+                ห้องชั้น {DAILY.floor} · พัก 24 ชม. เช็คอินเวลาไหน เช็คเอาท์เวลาเดียวกันของวันถัดไป
+              </div>
+              <div className="text-[15px] font-medium text-cb-muted">จองล่วงหน้า · สอบถามได้ทาง LINE และโทร</div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a href={lineUrl} className={`${pill} bg-line-green text-white hover:text-white`}>
+                <IconChat />
+                จองผ่าน LINE
+              </a>
+              <a href={telUrl} className={`${pill} border-2 border-cb-brown text-cb-brown hover:text-cb-brown`}>
+                โทร {settings.phone}
+              </a>
+            </div>
           </div>
           {/* แถบไม่มีลิฟต์: ใต้การ์ดห้อง เห็นชัดแต่ไม่เด่น — ห้ามย้ายไป Hero ห้ามซ่อน (ใบ B1 ข้อ 3 / B5 ข้อ 7) */}
           <div className="flex items-center gap-2.5 rounded-[14px] bg-[#F1ECE6] px-4 py-3 text-[15px] text-[#4A3628]">
