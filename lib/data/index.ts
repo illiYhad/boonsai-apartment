@@ -36,7 +36,7 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
   }
   const sb = await createServerSupabase();
   const [s, t, p, r, a] = await Promise.all([
-    sb.from("site_settings").select("name,line_oa,phone,address_text,google_maps_url,nearby_places,common_fee,water_rate,electric_rate,parking_fee,parking_slots").limit(1).maybeSingle(),
+    sb.from("site_settings").select("name,line_oa,phone,address_text,google_maps_url,map_lat,map_lng,nearby_places,common_fee,water_rate,electric_rate,parking_fee,parking_slots").limit(1).maybeSingle(),
     sb.from("room_types").select("id,name,description,is_published"),
     sb.from("floor_prices").select("floor,room_type_id,price_per_month"),
     sb.from("rooms").select("room_number,floor,room_type_id,status,is_published"),

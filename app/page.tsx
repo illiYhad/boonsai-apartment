@@ -46,7 +46,12 @@ export default async function Home() {
   const lineUrl = `https://line.me/R/ti/p/${settings.line_oa}`;
   const telUrl = `tel:${settings.phone.replace(/\D/g, "")}`;
   const minPrice = cards.length ? Math.min(...cards.map((c) => c.price)) : null;
-  const mapEmbed = `https://www.google.com/maps?q=${encodeURIComponent(settings.address_text)}&output=embed`;
+  // มีพิกัดจริง → ปักหมุดตึก · ไม่มี → ค้นจากที่อยู่เหมือนเดิม
+  const lat = settings.map_lat === null ? NaN : Number(settings.map_lat);
+  const lng = settings.map_lng === null ? NaN : Number(settings.map_lng);
+  const mapEmbed = Number.isFinite(lat) && Number.isFinite(lng)
+    ? `https://www.google.com/maps?q=${lat},${lng}&z=17&output=embed`
+    : `https://www.google.com/maps?q=${encodeURIComponent(settings.address_text)}&output=embed`;
 
   const jsonLd = {
     "@context": "https://schema.org",

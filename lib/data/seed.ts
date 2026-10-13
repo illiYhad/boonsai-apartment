@@ -8,7 +8,10 @@ export const SEED_SETTINGS: SiteSettings = {
   phone: "02-050-6449",
   // อ.เมืองสมุทรปราการ = ตามดราฟ · รอพี่ไอซ์ยืนยันอำเภอ
   address_text: "72/4 ภาณุวงศ์ 3 ต.บางเมืองใหม่ อ.เมืองสมุทรปราการ จ.สมุทรปราการ 10270",
-  google_maps_url: "https://maps.app.goo.gl/yngg8dVcKFy212RcA",
+  // หมุดจริงจากลิงก์ที่พี่หยัดส่ง 2026-10-13 (ตรงกับ supabase/sql/007_map_pin.sql)
+  google_maps_url: "https://maps.app.goo.gl/LE14ijHxav1jwxNUA",
+  map_lat: 13.6356438,
+  map_lng: 100.5943656,
   nearby_places: [
     { name: "BTS ปู่เจ้า", note: "ประมาณ 5 นาที" },
     { name: "อิมพีเรียลเวิลด์ สำโรง", note: "ประมาณ 5 นาที" },

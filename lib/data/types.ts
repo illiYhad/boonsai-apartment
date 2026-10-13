@@ -6,6 +6,8 @@ export type SiteSettings = {
   phone: string;
   address_text: string;
   google_maps_url: string;
+  map_lat: number | null;
+  map_lng: number | null;
   nearby_places: { name: string; note: string }[];
   common_fee: number;
   water_rate: number;
