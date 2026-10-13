@@ -206,7 +206,7 @@ export default async function Home() {
               {[
                 ["รับ", "สัตว์เลี้ยงขนาดเล็ก ฉีดวัคซีนแล้ว"],
                 ["รวมในค่าห้อง", "ไม่เกิน 2 ตัว/ห้อง"],
-                ["ตัวที่ 3 ขึ้นไป", "+500 บาท/ตัว"],
+                ["ตัวที่ 3 ขึ้นไป", "+500 บาท/ตัว (จ่ายครั้งเดียว)"],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-[14px] bg-white p-4">
                   <div className="text-[13px] text-pet-ink">{k}</div>
