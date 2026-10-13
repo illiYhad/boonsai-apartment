@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Anuphan, IBM_Plex_Sans_Thai } from "next/font/google";
+import { Anuphan, IBM_Plex_Sans_Thai, Mitr } from "next/font/google";
 import "./globals.css";
 
 const anuphan = Anuphan({ subsets: ["thai", "latin"], weight: ["500", "600", "700"], variable: "--font-anuphan", display: "swap" });
+const mitr = Mitr({ subsets: ["thai", "latin"], weight: ["400", "500", "600"], variable: "--font-mitr", display: "swap" });
 const plex = IBM_Plex_Sans_Thai({ subsets: ["thai", "latin"], weight: ["400", "500", "600"], variable: "--font-plex", display: "swap" });
 
 const TITLE = "บุญใสอพาร์ทเม้นท์ · ห้องพักใกล้ BTS ปู่เจ้า เลี้ยงสัตว์ได้ สมุทรปราการ";
@@ -17,11 +18,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export const viewport: Viewport = { themeColor: "#0E5A4C" };
+export const viewport: Viewport = { themeColor: "#3B2618" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${anuphan.variable} ${plex.variable}`}>
+    <html lang="th" className={`${anuphan.variable} ${mitr.variable} ${plex.variable}`}>
       <body>{children}</body>
     </html>
   );

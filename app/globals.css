@@ -16,6 +16,20 @@
   --color-ok-ink: #0B5E3A;
   --color-pet: #FCEBD2;
   --color-pet-ink: #7A4A0E;
+  /* ธีมคาปิบาร่า (หน้าสาธารณะ · DESIGN v2) — ชุด cb-* แยกจากชุดเดิมที่หลังบ้านใช้ */
+  --color-cb-brown: #3B2618;
+  --color-cb-cream: #FBF3E6;
+  --color-cb-sand: #F3E2C8;
+  --color-cb-orange: #B5602A;
+  --color-cb-olive: #6B7B3E;
+  --color-cb-text: #5A4030;
+  --color-cb-muted: #6B5241;
+  --color-cb-border: #EAD6BA;
+  --color-cb-tan: #C9915A;
+  --color-cb-link: #7A4520;
+  --color-cb-photo: #E9D6BB;
+  --color-cb-gold: #E9A45B;
+  --font-display: var(--font-mitr), sans-serif;
   --font-head: var(--font-anuphan), sans-serif;
   --font-sans: var(--font-plex), sans-serif;
 }
