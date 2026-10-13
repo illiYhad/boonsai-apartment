@@ -12,7 +12,7 @@ const wrap = "mx-auto max-w-[1200px] px-6";
 const h2 = "m-0 font-display text-[clamp(28px,4vw,36px)] font-semibold leading-tight";
 const pill = "inline-flex min-h-13 items-center gap-2.5 rounded-full px-6 text-[17px] font-semibold no-underline";
 
-// คลิปเดิมจากพี่ไอซ์ · พี่หยัดอนุมัติ 2026-10-13 · มีข้อความโปรฯ ก.ย. ในคลิป (ยกเว้นเฉพาะตัวคลิป · ข้อความบนหน้าเว็บยังห้าม)
+// คลิปฉบับตัดต่อใหม่ v4 (อลิส · พี่หยัดอนุมัติ 2026-10-13) · ไม่มีโปรฯ ก.ย.
 const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" };
 
 // โปสเตอร์ใช้ฉบับที่อลิสแก้ (2,200 / @371dkpvl) · พี่หยัดอนุมัติ 2026-10-13
