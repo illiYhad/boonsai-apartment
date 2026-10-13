@@ -1,6 +1,5 @@
 import { InquiryForm } from "@/components/InquiryForm";
-import { getSiteData } from "@/lib/data";
-import { OTHER_FEES } from "@/lib/data/seed";
+import { buildFees, getSiteData } from "@/lib/data";
 
 // ข้อมูลห้องว่างเปลี่ยนจากหลังบ้าน → อ่านใหม่ทุก 60 วิ
 export const revalidate = 60;
@@ -108,7 +107,7 @@ export default async function Home() {
                 {" "}· เริ่มต้น <strong className="text-ink">{fmt(minPrice)} บาท/เดือน</strong>
               </>
             )}{" "}
-            · กล้องวงจรปิด 24 ชม. · ที่จอดรถ 13 คัน
+            · กล้องวงจรปิด 24 ชม. · ที่จอดรถ {settings.parking_slots} คัน
           </p>
           <div className="mt-1 flex flex-wrap gap-3">
             <a href={lineUrl} className="inline-flex min-h-13 items-center gap-2.5 rounded-[14px] bg-line-green px-6.5 text-[17px] font-semibold text-white no-underline hover:text-white">
@@ -169,7 +168,7 @@ export default async function Home() {
             ))}
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
-            {OTHER_FEES.map((f) => (
+            {buildFees(settings).map((f) => (
               <div key={f.label} className="rounded-[14px] bg-cream px-4 py-3.5">
                 <div className="text-[13px] text-subtle">{f.label}</div>
                 <div className="font-semibold">{f.value}</div>

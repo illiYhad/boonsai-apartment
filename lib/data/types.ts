@@ -7,6 +7,11 @@ export type SiteSettings = {
   address_text: string;
   google_maps_url: string;
   nearby_places: { name: string; note: string }[];
+  common_fee: number;
+  water_rate: number;
+  electric_rate: number;
+  parking_fee: number;
+  parking_slots: number;
 };
 export type RoomType = { id: string; name: string; description: string; is_published: boolean };
 export type FloorPrice = { floor: number; room_type_id: string; price_per_month: number };

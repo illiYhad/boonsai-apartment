@@ -8,6 +8,8 @@
 | 2 | `002_rls.sql` | `is_admin()` (SECURITY DEFINER) + เปิด RLS + policy ทุกตาราง |
 | 3 | `003_seed.sql` | ข้อมูลจาก DATA_REAL_Boonsai_v1 (ตั้งค่าเว็บ · 3 ประเภทห้อง · ราคา 8 แถว · ห้องว่าง 14 ห้อง · สิ่งอำนวยความสะดวก 7 · กฎสัตว์) |
 | 4 | `004_storage.sql` | bucket `boonsai-photos` (อ่านสาธารณะ · เขียนเฉพาะแอดมิน) |
+| 5 | `005_fees.sql` | (B2) คอลัมน์ค่าส่วนกลาง/น้ำ/ไฟ/จอดรถ/จำนวนช่องจอด ใน `site_settings` · ค่าเริ่มต้นตรงกับ DATA_REAL |
+| 6 | `006_inquiry_closed_at.sql` | (B2) คอลัมน์ `closed_at` ใน `inquiries` ไว้ลบอัตโนมัติ 90 วันหลังปิดเรื่อง |
 
 วิธีรัน: Supabase Dashboard → SQL Editor → วางทีละไฟล์ตามลำดับ → Run · 001/003 รันซ้ำได้ (if not exists / on conflict) · **002 และ 004 รันซ้ำจะ error เพราะ policy ซ้ำ** (ไม่เสียหาย แต่ไม่ต้องรันซ้ำ)
 
