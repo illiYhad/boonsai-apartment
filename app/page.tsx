@@ -61,7 +61,7 @@ export default async function Home() {
     alternateName: "Boonsai Apartment",
     telephone: settings.phone,
     petsAllowed: true,
-    numberOfAccommodationUnits: 72,
+    numberOfAccommodationUnits: 82,
     hasMap: settings.google_maps_url,
     address: {
       "@type": "PostalAddress",
@@ -110,7 +110,7 @@ export default async function Home() {
               <br />
               มาอยู่ด้วยกันได้
             </h1>
-            <p className="m-0 text-lg text-cb-text">อาคาร 6 ชั้น 72 ห้อง · มีคาเฟ่ในอาคาร · กล้องวงจรปิด 24 ชม. · ที่จอดรถ {settings.parking_slots} คัน</p>
+            <p className="m-0 text-lg text-cb-text">อาคาร 6 ชั้น 82 ห้อง · มีคาเฟ่ในอาคาร · กล้องวงจรปิด 24 ชม. · ที่จอดรถ {settings.parking_slots} คัน</p>
             <div className="flex flex-wrap items-center gap-3.5">
               {minPrice !== null && (
                 <div className="rounded-[22px] bg-white px-5.5 py-3 shadow-[0_6px_0_var(--color-cb-tan)]">
