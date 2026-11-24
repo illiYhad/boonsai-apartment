@@ -12,6 +12,7 @@
 | 6 | `006_inquiry_closed_at.sql` | (B2) คอลัมน์ `closed_at` ใน `inquiries` ไว้ลบอัตโนมัติ 90 วันหลังปิดเรื่อง |
 | 7 | `007_map_pin.sql` | (B3) หมุดแผนที่ตึกจริง `map_lat`/`map_lng` + ลิงก์ Google Maps ใหม่ · **ต้องรันก่อนเปิดเว็บที่ต่อ DB** |
 | 8 | `008_pet_fee.sql` | (B4) ค่าสัตว์ตัวที่ 3 ขึ้นไป +500 บาท/ตัว จ่ายครั้งเดียว (`extra_deposit`=500 + แก้ข้อความกฎ) · ไม่เพิ่มคอลัมน์ ไม่ต้องรันก่อน deploy |
+| 9 | `009_electric_11.sql` | (B5) ค่าไฟ 11 บาท/หน่วย (`site_settings.electric_rate`) · ไม่เพิ่มคอลัมน์ ไม่ต้องรันก่อน deploy |
 
 วิธีรัน: Supabase Dashboard → SQL Editor → วางทีละไฟล์ตามลำดับ → Run · 001/003 รันซ้ำได้ (if not exists / on conflict) · **002 และ 004 รันซ้ำจะ error เพราะ policy ซ้ำ** (ไม่เสียหาย แต่ไม่ต้องรันซ้ำ)
 

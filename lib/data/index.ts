@@ -51,3 +51,23 @@ export const getSiteData = cache(async (): Promise<SiteData> => {
     source: "db",
   };
 });
+
+/** การ์ดที่โชว์บนหน้าแรก: เฉพาะที่มีห้องว่าง > 0 เรียงราคาถูก→แพง (ชั้นที่เต็มไม่โชว์ราคา) */
+export function visibleCards(cards: RoomCard[]): RoomCard[] {
+  return cards.filter((c) => c.available > 0).sort((a, b) => a.price - b.price || a.floor - b.floor);
+}
+
+/** ข้อความ "ชั้น 1–3 เต็มแล้ว" จากชั้นที่มีราคาในระบบแต่ไม่มีห้องว่างเลย · ไม่มีชั้นเต็ม → null */
+export function fullFloorsLabel(cards: RoomCard[]): string | null {
+  const floors = [...new Set(cards.map((c) => c.floor))].sort((a, b) => a - b);
+  const full = floors.filter((f) => !cards.some((c) => c.floor === f && c.available > 0));
+  if (!full.length) return null;
+  const parts: string[] = [];
+  for (let i = 0; i < full.length; ) {
+    let j = i;
+    while (j + 1 < full.length && full[j + 1] === full[j] + 1) j++;
+    parts.push(j > i ? `${full[i]}–${full[j]}` : `${full[i]}`);
+    i = j + 1;
+  }
+  return `ชั้น ${parts.join(", ")} เต็มแล้ว`;
+}

@@ -20,7 +20,7 @@ export const SEED_SETTINGS: SiteSettings = {
   // ค่าใช้จ่ายอื่น (DATA_REAL) — ใน DB อยู่คอลัมน์ site_settings (005_fees.sql) แอดมินแก้เองที่ /admin/prices
   common_fee: 200,
   water_rate: 20,
-  electric_rate: 8,
+  electric_rate: 11,
   parking_fee: 1000,
   parking_slots: 13,
 };
