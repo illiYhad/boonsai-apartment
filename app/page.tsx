@@ -66,6 +66,15 @@ function Placeholder({ label, className }: { label: string; className: string })
   return <div className={`box-border flex items-center justify-center p-6 text-center ${className}`}>{label}</div>;
 }
 
+// K-BS-BOOK.1a · รูปห้องจริงตามประเภท (คีย์ = ชื่อแบบห้อง) · ยังไม่มีรูปจากพี่หยัด → ใช้ภาพคาปิบาร่าเดิม
+const ROOM_PHOTOS: Record<string, { src: string; alt: string; width: number; height: number }> = {};
+const ROOM_PHOTO_FALLBACK = { src: "/brand/capy-group.jpg", width: 1090, height: 556 };
+
+// ข้อความแนบใช้ LINE URL scheme "oaMessage" ซึ่งรองรับเฉพาะ LINE บน iOS/Android (เอกสาร LINE)
+// → จอสัมผัสใช้ลิงก์นี้ · เมาส์ (คอม) ใช้ลิงก์โปรไฟล์ OA เดิม
+const bookUrl = (lineId: string, message: string) => `https://line.me/R/oaMessage/${encodeURIComponent(lineId)}/?${encodeURIComponent(message)}`;
+const bookBtn = "min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-line-green px-4 text-center text-[15px] font-semibold text-white no-underline hover:text-white";
+
 export default async function Home() {
   const { settings, cards, amenities } = await getSiteData();
   const lineUrl = `https://line.me/R/ti/p/${settings.line_oa}`;
@@ -189,7 +198,11 @@ export default async function Home() {
               {shown.map((c) => (
                 <div key={`${c.floor}-${c.typeName}`} className="flex flex-col overflow-hidden rounded-3xl border-2 border-cb-border bg-cb-cream">
                   <div className="relative">
-                    <Placeholder label="[รูปห้องจริง]" className="h-[150px] bg-cb-photo text-sm text-[#8A6A50]" />
+                    <Image
+                      {...(ROOM_PHOTOS[c.typeName] ?? { ...ROOM_PHOTO_FALLBACK, alt: `ภาพประกอบคาปิบาร่า หมา และแมว (รอรูปจริงของ${c.typeName})` })}
+                      sizes="(max-width: 768px) 92vw, 360px"
+                      className="block h-[150px] w-full bg-cb-photo object-cover"
+                    />
                     <span className="absolute top-3 left-3 rounded-full bg-cb-brown px-3 py-1 text-[13px] font-semibold text-cb-cream">ชั้น {c.floor}</span>
                     <span className="absolute top-3 right-3 rounded-full bg-cb-olive px-3 py-1 text-[13px] font-semibold text-white">ว่าง {c.available} ห้อง</span>
                   </div>
@@ -197,6 +210,17 @@ export default async function Home() {
                     <IconLine icon={iconFor(ROOM_ICONS, c.typeName)} className="text-[15px] text-cb-text">{c.typeName}</IconLine>
                     <div className="font-display text-[28px] font-semibold leading-tight text-cb-orange">
                       {fmt(c.price)} <span className="font-sans text-sm font-normal text-cb-muted">บาท/เดือน</span>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <a href={bookUrl(settings.line_oa, `สนใจ${c.typeName} ชั้น ${c.floor} ${fmt(c.price)}/เดือน`)} className={`hidden [@media(pointer:coarse)]:inline-flex ${bookBtn}`} data-book="touch">
+                        สอบถาม / จองห้องนี้
+                      </a>
+                      <a href={lineUrl} className={`inline-flex [@media(pointer:coarse)]:hidden ${bookBtn}`} data-book="desktop">
+                        สอบถาม / จองห้องนี้
+                      </a>
+                      <a href={telUrl} className="inline-flex min-h-12 items-center justify-center rounded-full border-2 border-cb-brown px-4 text-[15px] font-semibold text-cb-brown no-underline hover:text-cb-brown">
+                        โทร
+                      </a>
                     </div>
                   </div>
                 </div>
