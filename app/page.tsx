@@ -1,4 +1,8 @@
 import Image from "next/image";
+import {
+  AirVent, BedDouble, CalendarCheck, Car, Cctv, Coins, Fan, GlassWater, House, KeyRound, Lock, PawPrint, Sparkles, Wallet,
+  WashingMachine, Wifi, type LucideIcon,
+} from "lucide-react";
 import { FloatingLine } from "@/components/FloatingLine";
 import { Gallery, type GalleryItem } from "@/components/Gallery";
 import { InquiryForm } from "@/components/InquiryForm";
@@ -34,6 +38,29 @@ function Icon({ d, size = 20 }: { d: React.ReactNode; size?: number }) {
 const IconPaw = () => <Icon size={24} d={<><circle cx="11" cy="4" r="2" /><circle cx="18" cy="8" r="2" /><circle cx="4" cy="8" r="2" /><path d="M8 14a4 4 0 0 1 8 0c0 3-2 5-4 5s-4-2-4-5z" /></>} />;
 const IconChat = () => <Icon d={<path d="M21 11.5a8.4 8.4 0 0 1-9 8.3 9.3 9.3 0 0 1-3-.5L3 21l1.6-4.4A7.9 7.9 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z" />} />;
 const IconInfo = () => <Icon d={<><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>} />;
+
+// K-BS-ICON.1a · ชื่อสิ่งอำนวยความสะดวก/ประเภทห้องมาจากฐานข้อมูล → จับคู่ด้วยคำสำคัญ · ไม่ตรง = ไม่ใส่ไอคอน
+const AMENITY_ICONS: [RegExp, LucideIcon][] = [
+  [/กล้องวงจรปิด/, Cctv], [/คีย์การ์ด/, KeyRound], [/wi-?fi/i, Wifi], [/ซักผ้า/, WashingMachine],
+  [/ตู้กดน้ำ/, GlassWater], [/แม่บ้าน/, Sparkles], [/ที่จอดรถ/, Car],
+];
+// ลำดับสำคัญ: "ห้องเปล่า (ไม่มีแอร์)" มีคำว่าแอร์ และ Full Unit ก็มีคำว่าแอร์
+const ROOM_ICONS: [RegExp, LucideIcon][] = [[/full unit/i, BedDouble], [/ห้องเปล่า|ไม่มีแอร์/, Fan], [/แอร์/, AirVent]];
+const iconFor = (table: [RegExp, LucideIcon][], text: string) => table.find(([re]) => re.test(text))?.[1];
+
+/** ข้อความ + ไอคอนเล็กด้านซ้าย · ไอคอนอยู่กลางบรรทัดแรก (กล่องสูง 1lh) · เป็นของตกแต่ง ข้อความคือความหมาย */
+function IconLine({ icon: I, className, children }: { icon?: LucideIcon; className?: string; children: React.ReactNode }) {
+  return (
+    <div className={`flex items-start gap-2 ${className ?? ""}`}>
+      {I && (
+        <span className="flex h-[1lh] shrink-0 items-center">
+          <I aria-hidden="true" strokeWidth={1.75} className="size-4 text-cb-brown/90 md:size-4.5" />
+        </span>
+      )}
+      <span className="min-w-0">{children}</span>
+    </div>
+  );
+}
 
 function Placeholder({ label, className }: { label: string; className: string }) {
   return <div className={`box-border flex items-center justify-center p-6 text-center ${className}`}>{label}</div>;
@@ -167,7 +194,7 @@ export default async function Home() {
                     <span className="absolute top-3 right-3 rounded-full bg-cb-olive px-3 py-1 text-[13px] font-semibold text-white">ว่าง {c.available} ห้อง</span>
                   </div>
                   <div className="flex flex-col gap-1 px-4.5 pt-4 pb-4.5">
-                    <div className="text-[15px] text-cb-text">{c.typeName}</div>
+                    <IconLine icon={iconFor(ROOM_ICONS, c.typeName)} className="text-[15px] text-cb-text">{c.typeName}</IconLine>
                     <div className="font-display text-[28px] font-semibold leading-tight text-cb-orange">
                       {fmt(c.price)} <span className="font-sans text-sm font-normal text-cb-muted">บาท/เดือน</span>
                     </div>
@@ -221,12 +248,12 @@ export default async function Home() {
           <h2 className={h2}>จองห้องง่ายๆ</h2>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3.5">
             {[
-              ["ผ่อนมัดจำได้", "แบ่งจ่ายสบาย ไม่ต้องจ่ายก้อนเดียว"],
-              ["จองล็อกห้องได้ไม่เกิน 7 วัน", "จองไว้ก่อนได้ ไม่ต้องรีบตัดสินใจวันนี้"],
-              ["ชำระเงินจองแล้ว ล็อกห้องไว้ให้", "ทางอพาร์ตเมนต์จะล็อกห้องไว้ให้ ไม่นำห้องไปปล่อยให้ผู้อื่น"],
-            ].map(([title, sub]) => (
+              { icon: Wallet, title: "ผ่อนมัดจำได้", sub: "แบ่งจ่ายสบาย ไม่ต้องจ่ายก้อนเดียว" },
+              { icon: CalendarCheck, title: "จองล็อกห้องได้ไม่เกิน 7 วัน", sub: "จองไว้ก่อนได้ ไม่ต้องรีบตัดสินใจวันนี้" },
+              { icon: Lock, title: "ชำระเงินจองแล้ว ล็อกห้องไว้ให้", sub: "ทางอพาร์ตเมนต์จะล็อกห้องไว้ให้ ไม่นำห้องไปปล่อยให้ผู้อื่น" },
+            ].map(({ icon, title, sub }) => (
               <div key={title} className="rounded-[20px] bg-white p-5">
-                <div className="font-display text-[19px] font-medium">{title}</div>
+                <IconLine icon={icon} className="font-display text-[19px] font-medium">{title}</IconLine>
                 <div className="text-sm text-cb-muted">{sub}</div>
               </div>
             ))}
@@ -248,12 +275,12 @@ export default async function Home() {
             </h2>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-2.5">
               {[
-                ["รับ", "ขนาดเล็ก ฉีดวัคซีนแล้ว"],
-                ["รวมในค่าห้อง", "ไม่เกิน 2 ตัว/ห้อง"],
-                ["ตัวที่ 3 ขึ้นไป", "+500 บาท/ตัว (จ่ายครั้งเดียว)"],
-              ].map(([k, v]) => (
+                { icon: PawPrint, k: "รับ", v: "ขนาดเล็ก ฉีดวัคซีนแล้ว" },
+                { icon: House, k: "รวมในค่าห้อง", v: "ไม่เกิน 2 ตัว/ห้อง" },
+                { icon: Coins, k: "ตัวที่ 3 ขึ้นไป", v: "+500 บาท/ตัว (จ่ายครั้งเดียว)" },
+              ].map(({ icon, k, v }) => (
                 <div key={k} className="rounded-2xl bg-cb-cream p-3.5 text-cb-brown">
-                  <div className="text-[13px] text-cb-link">{k}</div>
+                  <IconLine icon={icon} className="text-[13px] text-cb-link">{k}</IconLine>
                   <div className="font-semibold">{v}</div>
                 </div>
               ))}
@@ -295,7 +322,9 @@ export default async function Home() {
         <h2 className={h2}>สิ่งอำนวยความสะดวก</h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
           {amenities.map((a) => (
-            <div key={a.name} className="rounded-2xl bg-white p-4 font-medium">{a.name}</div>
+            <div key={a.name} className="rounded-2xl bg-white p-4 font-medium">
+              <IconLine icon={iconFor(AMENITY_ICONS, a.name)}>{a.name}</IconLine>
+            </div>
           ))}
         </div>
       </section>
