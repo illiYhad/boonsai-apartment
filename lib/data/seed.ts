@@ -28,17 +28,19 @@ export const SEED_SETTINGS: SiteSettings = {
 export const T_PLAIN = "00000000-0000-4000-8000-000000000001";
 export const T_AIR = "00000000-0000-4000-8000-000000000002";
 export const T_FULL = "00000000-0000-4000-8000-000000000003";
+export const T_FLOOR2 = "00000000-0000-4000-8000-000000000004"; // K-BS-PRICE.2b · แยกจากห้องพัดลมเพราะมัดจำต่างกัน
 
 export const SEED_ROOM_TYPES: RoomType[] = [
   { id: T_FULL, name: "Full Unit · 2 เตียง + แอร์", description: "", is_published: true },
   { id: T_AIR, name: "ห้องแอร์", description: "", is_published: true },
   { id: T_PLAIN, name: "ห้องเปล่า (ไม่มีแอร์)", description: "", is_published: true },
+  { id: T_FLOOR2, name: "ห้องเปล่า ชั้น 2", description: "", is_published: true },
 ];
 
 // ราคา: K-BS-PRICE.2 (พี่ไอซ์ยืนยัน 2026-11-26) · ฐานจริงอัปด้วย UPDATE_prices_ice_2026-11-26.sql (003_seed.sql ยังเป็นค่าเดิม)
 export const SEED_FLOOR_PRICES: FloorPrice[] = [
   { floor: 1, room_type_id: T_PLAIN, price_per_month: 2500 },
-  { floor: 2, room_type_id: T_PLAIN, price_per_month: 3000 },
+  { floor: 2, room_type_id: T_FLOOR2, price_per_month: 3000 },
   { floor: 3, room_type_id: T_FULL, price_per_month: 4500 },
   { floor: 3, room_type_id: T_AIR, price_per_month: 3500 },
   { floor: 3, room_type_id: T_PLAIN, price_per_month: 2500 },
@@ -55,7 +57,7 @@ const avail = (room_number: string, floor: number, room_type_id: string): Room =
  *  ชั้น 4 ห้องเปล่าว่าง 2 ห้อง ไม่มีเลขในโปสเตอร์ → เลขชั่วคราว "4-ว่าง-1/2" รอพี่ไอซ์ให้เลขจริง */
 export const SEED_ROOMS: Room[] = [
   avail("401", 4, T_FULL), avail("402", 4, T_FULL),
-  avail("410", 4, T_AIR), avail("414", 4, T_AIR),
+  avail("410", 4, T_PLAIN), avail("414", 4, T_PLAIN), // 409–416 = ห้องพัดลม (ตารางพี่ไอซ์)
   avail("4-ว่าง-1", 4, T_PLAIN), avail("4-ว่าง-2", 4, T_PLAIN),
   avail("504", 5, T_PLAIN), avail("505", 5, T_PLAIN), avail("506", 5, T_PLAIN), avail("508", 5, T_PLAIN),
   avail("606", 6, T_PLAIN), avail("610", 6, T_PLAIN), avail("612", 6, T_PLAIN), avail("615", 6, T_PLAIN),
