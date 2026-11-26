@@ -12,7 +12,7 @@ export default function OgImage() {
         <div style={{ fontSize: 34, color: "#E9A45B", marginBottom: 24 }}>Pet Friendly</div>
         <div style={{ fontSize: 88, fontWeight: 700, lineHeight: 1.1 }}>Boonsai Apartment</div>
         <div style={{ fontSize: 40, marginTop: 28, color: "#E8D3B6" }}>Near BTS Pu Chao · Samut Prakan</div>
-        <div style={{ fontSize: 40, marginTop: 12, color: "#E8D3B6" }}>From 2,200 THB / month · LINE @371dkpvl</div>
+        <div style={{ fontSize: 40, marginTop: 12, color: "#E8D3B6" }}>From 2,500 THB / month · LINE @371dkpvl</div>
       </div>
     ),
     size,

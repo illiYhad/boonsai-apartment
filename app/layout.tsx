@@ -8,7 +8,7 @@ const plex = IBM_Plex_Sans_Thai({ subsets: ["thai", "latin"], weight: ["400", "5
 
 const TITLE = "บุญใสอพาร์ทเม้นท์ · ห้องพักใกล้ BTS ปู่เจ้า เลี้ยงสัตว์ได้ สมุทรปราการ";
 const DESCRIPTION =
-  "ห้องพักรายเดือนใกล้ BTS ปู่เจ้าและอิมพีเรียลเวิลด์ สำโรง สมุทรปราการ เลี้ยงสัตว์ได้ (Pet Friendly) เริ่มต้น 2,200 บาท/เดือน กล้องวงจรปิด 24 ชม. คีย์การ์ด ที่จอดรถ ทัก LINE @371dkpvl";
+  "ห้องพักรายเดือนใกล้ BTS ปู่เจ้าและอิมพีเรียลเวิลด์ สำโรง สมุทรปราการ เลี้ยงสัตว์ได้ (Pet Friendly) เริ่มต้น 2,500 บาท/เดือน กล้องวงจรปิด 24 ชม. คีย์การ์ด ที่จอดรถ ทัก LINE @371dkpvl";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://boonsai.balehmstudio.com"),
