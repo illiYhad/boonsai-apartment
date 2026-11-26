@@ -35,15 +35,18 @@ export const SEED_ROOM_TYPES: RoomType[] = [
   { id: T_PLAIN, name: "ห้องเปล่า (ไม่มีแอร์)", description: "", is_published: true },
 ];
 
+// ราคา: K-BS-PRICE.2 (พี่ไอซ์ยืนยัน 2026-11-26) · ฐานจริงอัปด้วย UPDATE_prices_ice_2026-11-26.sql (003_seed.sql ยังเป็นค่าเดิม)
 export const SEED_FLOOR_PRICES: FloorPrice[] = [
   { floor: 1, room_type_id: T_PLAIN, price_per_month: 2500 },
   { floor: 2, room_type_id: T_PLAIN, price_per_month: 3000 },
+  { floor: 3, room_type_id: T_FULL, price_per_month: 4500 },
+  { floor: 3, room_type_id: T_AIR, price_per_month: 3500 },
   { floor: 3, room_type_id: T_PLAIN, price_per_month: 2500 },
   { floor: 4, room_type_id: T_FULL, price_per_month: 4500 },
   { floor: 4, room_type_id: T_AIR, price_per_month: 3500 },
-  { floor: 4, room_type_id: T_PLAIN, price_per_month: 2400 },
-  { floor: 5, room_type_id: T_PLAIN, price_per_month: 2300 },
-  { floor: 6, room_type_id: T_PLAIN, price_per_month: 2200 },
+  { floor: 4, room_type_id: T_PLAIN, price_per_month: 2500 },
+  { floor: 5, room_type_id: T_PLAIN, price_per_month: 2500 },
+  { floor: 6, room_type_id: T_PLAIN, price_per_month: 2500 },
 ];
 
 const avail = (room_number: string, floor: number, room_type_id: string): Room => ({ room_number, floor, room_type_id, status: "available", is_published: true });
