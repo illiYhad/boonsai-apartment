@@ -212,7 +212,7 @@ export default async function Home() {
                       {fmt(c.price)} <span className="font-sans text-sm font-normal text-cb-muted">บาท/เดือน</span>
                     </div>
                     <div className="mt-2 flex gap-2">
-                      <a href={bookUrl(settings.line_oa, `สนใจ${c.typeName} ชั้น ${c.floor} ${fmt(c.price)}/เดือน`)} className={`hidden [@media(pointer:coarse)]:inline-flex ${bookBtn}`} data-book="touch">
+                      <a href={bookUrl(settings.line_oa, `สนใจ${c.typeName}${c.typeName.includes(`ชั้น ${c.floor}`) ? "" : ` ชั้น ${c.floor}`} ${fmt(c.price)}/เดือน`)} className={`hidden [@media(pointer:coarse)]:inline-flex ${bookBtn}`} data-book="touch">
                         สอบถาม / จองห้องนี้
                       </a>
                       <a href={lineUrl} className={`inline-flex [@media(pointer:coarse)]:hidden ${bookBtn}`} data-book="desktop">
