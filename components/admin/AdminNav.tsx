@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
+  { href: "/admin/dashboard", label: "แดชบอร์ด" },
   { href: "/admin/rooms", label: "ห้อง" },
   { href: "/admin/prices", label: "ราคา" },
   { href: "/admin/inquiries", label: "ฝากเบอร์" },
@@ -13,7 +14,7 @@ const TABS = [
 export function AdminNav() {
   const path = usePathname();
   return (
-    <nav className="mx-auto grid max-w-[760px] grid-cols-4 px-2" aria-label="เมนูหลังบ้าน">
+    <nav className="mx-auto grid max-w-[760px] grid-cols-5 px-2" aria-label="เมนูหลังบ้าน">
       {TABS.map((t) => {
         const active = path.startsWith(t.href);
         return (
