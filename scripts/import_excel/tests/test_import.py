@@ -39,7 +39,7 @@ class TestImport(unittest.TestCase):
     def test_counts_add_up_to_82(self):
         s = ie.summary(analyse())
         self.assertEqual(s["total"], 82)
-        parts = s["leases"] + s["awaiting"] + s["vacant"] + s["decided"]
+        parts = s["leases"] + s["awaiting"] + s["vacant"] + s["decided"] + s["held"]
         self.assertEqual(sorted(parts), sorted(ie.ALL_ROOMS))
         self.assertEqual(len(s["vacant"]), 32)
         self.assertEqual(sorted(s["decided"]), sorted(r for r in ie.DECIDED_ROOMS))
@@ -68,12 +68,38 @@ class TestImport(unittest.TestCase):
         a = analyse()
         by = {x["room"]: x for x in a["data"]}
         got = {r: {k: int(v) for k, (v, _) in x["meter"].items()} for r, x in by.items()}
-        self.assertEqual(got, EXP["meters"])
+        self.assertEqual(got.pop("103"), {})  # พักไว้ทั้งห้อง
+        self.assertEqual(got, {r: v for r, v in EXP["meters"].items() if r != "103"})
         s = ie.summary(a)
-        self.assertEqual(s["meter_rows"], 164)
+        self.assertEqual(s["meter_rows"], 162)
         self.assertEqual(s["meter_decrease"], [C["meter_dec"]])
         self.assertEqual(s["meter_blank"], sorted([C["meter_blank"], C["meter_text"]]))
         self.assertEqual(by[C["meter_dec"]]["meter"]["ELEC"][1], "DECREASE")
+
+    def test_held_room_103_is_never_touched(self):
+        a = analyse()
+        self.assertEqual(ie.summary(a)["held"], ["103"])
+        self.assertNotIn("103", [r for r, _, _ in ie.plan_rows(a)])
+        sql = ie.build_sql(a, PERIOD)
+        self.assertNotIn("103", imp_rooms(sql))
+        self.assertNotIn("('103', '2026-10-01'", sql)
+        self.assertIn("insert into _skip values ('103'", sql)
+
+    def test_missing_rooms_are_skipped_not_fatal(self):
+        sql = ie.build_sql(analyse(), PERIOD)
+        self.assertNotIn("ต้องเพิ่มห้องก่อน", sql)
+        self.assertIn("raise notice 'ข้ามห้อง %: %'", sql)
+        self.assertTrue(sql.rstrip().endswith("select * from _import_result order by item;"))
+
+    def test_check_file_is_read_only_and_has_no_personal_data(self):
+        a = analyse()
+        sql = ie.build_check_sql(a)
+        code = "\n".join(line for line in sql.splitlines() if not line.startswith("--"))
+        bare = re.sub(r"'[^']*'", "''", code)
+        self.assertEqual(bare.count(";"), 1)
+        self.assertNotRegex(bare, r"(?i)\b(insert|update|delete|create|alter|drop|truncate|grant|revoke|do|call)\b")
+        for s in EXP["fake_strings"]:
+            self.assertNotIn(s, sql)
 
     def test_no_price_writes_and_no_parking_fee(self):
         sql = ie.build_sql(analyse(), PERIOD) + ie.build_rollback_sql()
