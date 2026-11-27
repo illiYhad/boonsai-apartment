@@ -12,7 +12,7 @@ import import_excel as ie  # noqa: E402
 
 FIX = HERE / "tests" / "fixtures"
 # ห้องที่ตั้งใจให้เป็นกรณีพิเศษ
-CASES = {"vac_has_name": "305", "occ_no_name": "203", "rent_zero": "101", "no_start": "301",
+CASES = {"vac_has_name": "309", "occ_no_name": "203", "rent_zero": "101", "no_start": "301",
          "passport": "307", "meter_dec": "206", "meter_blank": "304", "meter_text": "306", "no_fee_row": "308"}
 
 

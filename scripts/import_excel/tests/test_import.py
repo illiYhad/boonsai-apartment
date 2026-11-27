@@ -41,7 +41,7 @@ class TestImport(unittest.TestCase):
         self.assertEqual(s["total"], 82)
         parts = s["leases"] + s["awaiting"] + s["vacant"] + s["decided"] + s["held"]
         self.assertEqual(sorted(parts), sorted(ie.ALL_ROOMS))
-        self.assertEqual(len(s["vacant"]), 32)
+        self.assertEqual(len(s["vacant"]), 29)
         self.assertEqual(sorted(s["decided"]), sorted(r for r in ie.DECIDED_ROOMS))
 
     def test_rent_comes_from_fee_sheet_per_room(self):
@@ -68,22 +68,28 @@ class TestImport(unittest.TestCase):
         a = analyse()
         by = {x["room"]: x for x in a["data"]}
         got = {r: {k: int(v) for k, (v, _) in x["meter"].items()} for r, x in by.items()}
-        self.assertEqual(got.pop("103"), {})  # พักไว้ทั้งห้อง
-        self.assertEqual(got, {r: v for r, v in EXP["meters"].items() if r != "103"})
+        self.assertEqual(got, EXP["meters"])
         s = ie.summary(a)
-        self.assertEqual(s["meter_rows"], 162)
+        self.assertEqual(s["meter_rows"], 164)
         self.assertEqual(s["meter_decrease"], [C["meter_dec"]])
         self.assertEqual(s["meter_blank"], sorted([C["meter_blank"], C["meter_text"]]))
         self.assertEqual(by[C["meter_dec"]]["meter"]["ELEC"][1], "DECREASE")
 
-    def test_held_room_103_is_never_touched(self):
+    def test_103_is_imported_and_nothing_is_held(self):
         a = analyse()
-        self.assertEqual(ie.summary(a)["held"], ["103"])
-        self.assertNotIn("103", [r for r, _, _ in ie.plan_rows(a)])
+        self.assertEqual(ie.summary(a)["held"], [])
+        self.assertIn("103", imp_rooms(ie.build_sql(a, PERIOD)))
+        self.assertNotIn("insert into _skip values", ie.build_sql(a, PERIOD))
+
+    def test_unconfirmed_rooms_never_get_a_status(self):
+        a = analyse()
+        s = ie.summary(a)
+        self.assertFalse(ie.KEEP_STATUS_ROOMS & set(s["vacant"]))
         sql = ie.build_sql(a, PERIOD)
-        self.assertNotIn("103", imp_rooms(sql))
-        self.assertNotIn("('103', '2026-10-01'", sql)
-        self.assertIn("insert into _skip values ('103'", sql)
+        updates = [line for line in sql.splitlines() if line.startswith("update public.rooms")]
+        self.assertEqual(len(updates), 2)
+        for line in updates:
+            self.assertIn("t.room_number <> all(array['302','303','305']::text[])", line)
 
     def test_missing_rooms_are_skipped_not_fatal(self):
         sql = ie.build_sql(analyse(), PERIOD)
