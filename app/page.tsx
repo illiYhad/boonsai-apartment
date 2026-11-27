@@ -22,10 +22,9 @@ const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4
 // จากเลขาพี่ไอซ์ 2026-10-13 · พี่หยัดยืนยันชั้น 1 + ต้องจองล่วงหน้า · ยังไม่อยู่ใน DB
 const DAILY = { price: 700, floor: 1 };
 
-// โปสเตอร์ใช้ฉบับที่อลิสแก้ (2,200 / @371dkpvl) · พี่หยัดอนุมัติ 2026-10-13
+// โปสเตอร์ราคาเก่าเอาออก (พี่หยัดสั่ง 2026-11-27 · K-BS-GALLERY.1)
 const GALLERY: GalleryItem[] = [
   { src: "/brand/welcome-square.webp", alt: "ป้ายต้อนรับ Boonsai Apartment มีคาปิบาร่า หมา และแมว", width: 1200, height: 1200 },
-  { src: "/brand/poster-capy-coffee.webp", alt: "โปสเตอร์บุญใส คาปิบาร่าถือกาแฟ ราคาเริ่มต้น 2,200 บาท/เดือน", width: 1054, height: 1492 },
 ];
 
 function Icon({ d, size = 20 }: { d: React.ReactNode; size?: number }) {
