@@ -1,5 +1,5 @@
-"""เทส import_excel.py ด้วย Excel ปลอม · unittest ล้วน ไม่ต้องติดตั้งเพิ่ม · รัน: python -m unittest discover -s tests -v (จากโฟลเดอร์ import_excel)"""
-import contextlib, io, json, re, subprocess, sys, tempfile, unittest
+"""เทส import_excel.py ด้วย Excel ปลอม · unittest ล้วน ไม่ต้องติดตั้งเพิ่ม · รัน: py -3 -m unittest discover -s tests -v (จากโฟลเดอร์ import_excel)"""
+import contextlib, io, json, re, sys, tempfile, unittest
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,19 +10,19 @@ import import_excel as ie  # noqa: E402
 
 FIX = HERE / "fixtures"
 XLSX = FIX / "fake_oct.xlsx"
-TYPES = FIX / "fake_room_type_map.csv"
 EXP = json.loads((FIX / "fake_expected.json").read_text(encoding="utf-8"))
+C = EXP["cases"]
 MAP = ie.load_map(ROOT / "import_map.json")
+PERIOD = ie.to_date("2026-10-01", be_auto=False)
 
 
-def analyse(room_types=None, vacant=None):
-    rt = ie.load_room_types(str(TYPES)) if room_types is None else room_types
-    return ie.analyse(ie.read_workbook(XLSX, MAP), MAP, vacant or set(ie.DEFAULT_VACANT), rt), rt
+def analyse():
+    return ie.analyse(*ie.read_workbook(XLSX, MAP), MAP, set(ie.DEFAULT_VACANT))
 
 
 def run_cli(*args):
     buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         try:
             rc = ie.main([str(a) for a in args])
         except SystemExit as e:
@@ -30,97 +30,106 @@ def run_cli(*args):
     return rc, buf.getvalue()
 
 
+def imp_rooms(sql):
+    block = re.search(r"insert into _imp values\n(.*?);\n\ndo", sql, re.S).group(1)
+    return set(re.findall(r"^  \('(\d{3})'", block, re.M))
+
+
 class TestImport(unittest.TestCase):
-    def test_dry_run_counts(self):
-        a, rt = analyse()
-        self.assertEqual(len(a["data"]), 82)
-        self.assertEqual(sum(1 for x in a["data"] if x["vacant"]), 32)
-        self.assertEqual(a["skipped"], ["701", "702"])
-        self.assertTrue(all(x["room"] not in ("701", "702") for x in a["data"]))
-        self.assertEqual(sum(1 for x in a["data"] if x["lease_ok"]), EXP["leases"])
+    def test_counts_add_up_to_82(self):
+        s = ie.summary(analyse())
+        self.assertEqual(s["total"], 82)
+        parts = s["leases"] + s["awaiting"] + s["vacant"] + s["decided"]
+        self.assertEqual(sorted(parts), sorted(ie.ALL_ROOMS))
+        self.assertEqual(len(s["vacant"]), 32)
+        self.assertEqual(sorted(s["decided"]), sorted(r for r in ie.DECIDED_ROOMS))
 
-    def test_rent_sum_matches_fake_file(self):
-        a, _ = analyse()
-        self.assertEqual(sum((x["rent"] for x in a["data"] if x["lease_ok"]), Decimal(0)), Decimal(EXP["rent_sum"]))
+    def test_rent_comes_from_fee_sheet_per_room(self):
+        a = analyse()
+        got = {x["room"]: int(x["rent"]) for x in a["data"] if x["lease_ok"]}
+        self.assertEqual(got, EXP["leases"])
 
-    def test_meter_base_matches_fake_file(self):
-        a, _ = analyse()
-        got = {x["room"]: {k: int(v) for k, v in x["meter"].items()} for x in a["data"] if x["meter"]}
+    def test_rooms_without_lease(self):
+        sql = ie.build_sql(analyse(), PERIOD)
+        rooms = imp_rooms(sql)
+        self.assertEqual(rooms, set(EXP["leases"]))
+        for k in ("vac_has_name", "occ_no_name", "rent_zero", "no_start", "no_fee_row"):
+            self.assertNotIn(C[k], rooms)
+        self.assertFalse(rooms & set(ie.DECIDED_ROOMS))
+
+    def test_decided_rooms_never_get_status_or_lease(self):
+        sql = ie.build_sql(analyse(), PERIOD)
+        for line in sql.splitlines():
+            if line.startswith("update public.rooms"):
+                for room in ie.DECIDED_ROOMS:
+                    self.assertNotIn(f"'{room}'", line)
+
+    def test_meters_kept_even_when_wrong(self):
+        a = analyse()
+        by = {x["room"]: x for x in a["data"]}
+        got = {r: {k: int(v) for k, (v, _) in x["meter"].items()} for r, x in by.items()}
         self.assertEqual(got, EXP["meters"])
+        s = ie.summary(a)
+        self.assertEqual(s["meter_rows"], 164)
+        self.assertEqual(s["meter_decrease"], [C["meter_dec"]])
+        self.assertEqual(s["meter_blank"], sorted([C["meter_blank"], C["meter_text"]]))
+        self.assertEqual(by[C["meter_dec"]]["meter"]["ELEC"][1], "DECREASE")
 
-    def test_conflicts_detected_at_least_three_kinds(self):
-        a, _ = analyse()
-        c = EXP["conflict_rooms"]
-        iss = a["issues"]
-        self.assertIn(c["vac_has_tenant"], iss["อยู่ในรายการว่างแต่มีชื่อผู้เช่า"])
-        self.assertIn(c["occ_no_tenant"], iss["ไม่อยู่ในรายการว่างแต่ไม่มีผู้เช่า"])
-        self.assertIn(c["meter_dec"], iss["มิเตอร์ใหม่ < เก่า (ไม่นำเข้ามิเตอร์ห้องนี้)"])
-        self.assertIn(c["unclear_occ"], iss["ประเภทการเข้าพักไม่ชัด (ไม่สร้างสัญญา)"])
-        self.assertIn(c["staff_no_company"], iss["ห้องพนักงานไม่มีบริษัทต้นสังกัด (ไม่สร้างสัญญา)"])
-        self.assertGreaterEqual(len(iss), 3)
+    def test_no_price_writes_and_no_parking_fee(self):
+        sql = ie.build_sql(analyse(), PERIOD) + ie.build_rollback_sql()
+        for table in ("room_types", "floor_prices", "rate_settings", "site_settings"):
+            self.assertNotRegex(sql, rf"(insert into|update|delete from) public\.{table}")
+        self.assertNotIn("price_override =", sql)
+        self.assertNotIn("room_type_id =", sql)
+        self.assertNotIn("insert into public.rooms", sql)
+        self.assertNotIn("parking_fee", sql)
+        self.assertIn("ราคาห้อง", sql)
 
-    def test_report_has_no_personal_data(self):
-        rc, out = run_cli(XLSX, "--room-types", TYPES)
+    def test_tenant_matched_by_room_only(self):
+        sql = ie.build_sql(analyse(), PERIOD)
+        self.assertNotRegex(sql, r"where[^\n]*full_name")
+        self.assertNotIn("update public.tenants", sql)
+        self.assertNotIn("update public.leases", sql)
+
+    def test_buddhist_dates_and_passport(self):
+        a = analyse()
+        by = {x["room"]: x for x in a["data"]}
+        self.assertTrue(all(x["lease"]["start"].year == 2025 for x in a["data"] if x["lease_ok"]))
+        self.assertEqual(by[C["passport"]]["tenant"]["id_type"], "PASSPORT")
+        self.assertIsNone(by[C["passport"]]["tenant"]["nationality"])
+
+    def test_report_and_rollback_have_no_personal_data(self):
+        rc, out = run_cli(XLSX, "--dry-run")
         self.assertEqual(rc, 0)
         for s in EXP["fake_strings"]:
             self.assertNotIn(s, out)
-        self.assertNotIn("ปลอม", out.replace("ไฟล์ปลอม", ""))
+            self.assertNotIn(s, ie.build_rollback_sql())
 
     def test_inspect_does_not_print_data_rows(self):
         rc, out = run_cli(XLSX, "--inspect")
         self.assertEqual(rc, 0)
         for s in EXP["fake_strings"]:
             self.assertNotIn(s, out)
-        self.assertLessEqual(len(out.splitlines()), 4)
 
     def test_emit_sql_under_web_is_rejected(self):
-        rc, out = run_cli(XLSX, "--emit-sql", ROOT.parent.parent / "leak_test.sql", "--room-types", TYPES)
+        bad = ROOT.parent.parent / "leak_test.sql"
+        with tempfile.TemporaryDirectory() as d:
+            rc, out = run_cli(XLSX, "--emit-sql", bad, "--emit-rollback", Path(d) / "r.sql")
         self.assertNotEqual(rc, 0)
-        self.assertFalse((ROOT.parent.parent / "leak_test.sql").exists())
+        self.assertFalse(bad.exists())
         self.assertIn("ปฏิเสธ", out)
 
-    def test_emit_sql_outside_repo_ok_and_deterministic(self):
+    def test_emit_needs_pair_and_is_deterministic(self):
         with tempfile.TemporaryDirectory() as d:
-            a, b = Path(d) / "a.sql", Path(d) / "b.sql"
-            self.assertEqual(run_cli(XLSX, "--emit-sql", a, "--room-types", TYPES)[0], 0)
-            self.assertEqual(run_cli(XLSX, "--emit-sql", b, "--room-types", TYPES)[0], 0)
-            sa = a.read_text(encoding="utf-8")
-            self.assertEqual(sa, b.read_text(encoding="utf-8"))
-            self.assertTrue(sa.lstrip().startswith("--") and "begin;" in sa and sa.rstrip().endswith("commit;"))
-            self.assertEqual(len(re.findall(r"insert into public\.rooms \(", sa)), 82)
-
-    def test_room_without_type_reported_and_not_inserted(self):
-        rt = ie.load_room_types(str(TYPES))
-        for r in ("201", "502"):
-            rt.pop(r)
-        a, _ = analyse(rt)
-        self.assertEqual(sorted(a["no_type"]), ["201", "502"])
-        sql = ie.build_sql(a, MAP, rt, ie.to_date("2026-10-01", be_auto=False))
-        self.assertNotRegex(sql, r"insert into public\.rooms \([^\n]*select '201'")
-        self.assertNotRegex(sql, r"insert into public\.rooms \([^\n]*select '502'")
-        self.assertIn("update public.rooms set status = 'occupied'::room_status where room_number = '201'", sql.replace("'occupied'", "'occupied'"))
-        rep = ie.report(a, rt, None)
-        self.assertIn("201, 502", rep)
-
-    def test_no_room_types_file_means_no_room_insert(self):
-        a, _ = analyse({})
-        sql = ie.build_sql(a, MAP, {}, ie.to_date("2026-10-01", be_auto=False))
-        self.assertNotIn("insert into public.rooms (", sql)
-        self.assertEqual(len(a["no_type"]), 82)
-
-    def test_conflict_rooms_have_no_lease_in_sql(self):
-        a, rt = analyse()
-        sql = ie.build_sql(a, MAP, rt, ie.to_date("2026-10-01", be_auto=False))
-        m = re.search(r"insert into _imp values\n(.*?);\n", sql, re.S)
-        rooms_in_imp = set(re.findall(r"^  \('(\d{3})'", m.group(1), re.M))
-        c = EXP["conflict_rooms"]
-        for k in ("occ_no_tenant", "unclear_occ", "staff_no_company"):
-            self.assertNotIn(c[k], rooms_in_imp)
-        self.assertEqual(len(rooms_in_imp), EXP["leases"])
-
-    def test_buddhist_year_dates_converted(self):
-        import datetime as dt
-        self.assertEqual(ie.to_date(dt.date(2569, 10, 1)), dt.date(2026, 10, 1))
+            p = [Path(d) / n for n in ("a.sql", "ra.sql", "b.sql", "rb.sql")]
+            self.assertEqual(run_cli(XLSX, "--emit-sql", p[0])[0], 2)
+            self.assertEqual(run_cli(XLSX, "--emit-sql", p[0], "--emit-rollback", p[1])[0], 0)
+            self.assertEqual(run_cli(XLSX, "--emit-sql", p[2], "--emit-rollback", p[3])[0], 0)
+            sa = p[0].read_text(encoding="utf-8")
+            self.assertEqual(sa, p[2].read_text(encoding="utf-8"))
+            for text in (sa, p[1].read_text(encoding="utf-8")):
+                self.assertEqual(len(re.findall(r"^begin;$", text, re.M)), 1)
+                self.assertEqual(len(re.findall(r"^commit;$", text, re.M)), 1)
 
 
 if __name__ == "__main__":

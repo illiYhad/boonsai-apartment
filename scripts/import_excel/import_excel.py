@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""import_excel.py · K-BS-IMPORT.1 · นำเข้า Excel บุญใส -> ไฟล์ SQL upsert (ตาราง 010)
+"""import_excel.py · K-BS-IMPORT.1 / IMPORT.2 · นำเข้าผู้เช่าจาก Excel บุญใส -> ไฟล์ SQL (ตาราง 010)
 
 โหมด:
-  --inspect            พิมพ์ชื่อชีต + 3 แถวแรกของแต่ละชีต (ตัด 40 ตัวอักษร) · ไม่พิมพ์แถวข้อมูลอื่น
-  (ค่าเริ่มต้น)        dry-run: รายงานด้วยเลขห้องเท่านั้น ไม่เขียนไฟล์ใด ๆ
-  --emit-sql <path>    เขียนไฟล์ SQL เดียว (transaction · รันซ้ำได้) · path ต้องอยู่นอก repo
+  --inspect               พิมพ์ชื่อชีต + 3 แถวแรกของแต่ละชีต (ตัด 40 ตัวอักษร) · ไม่พิมพ์แถวข้อมูลอื่น
+  (ค่าเริ่มต้น) / --dry-run  รายงานด้วยเลขห้องและตัวเลขสรุปเท่านั้น ไม่เขียนไฟล์ใด ๆ
+  --emit-sql <path>       เขียนไฟล์ IMPORT (transaction เดียว · รันซ้ำได้) · path ต้องอยู่นอก repo
+  --emit-rollback <path>  เขียนไฟล์ ROLLBACK คู่กัน (ใช้คู่กับ --emit-sql)
+
+กติกา (พี่หยัด 2026-11-27):
+  - ไม่เขียน room_types / floor_prices / ราคาห้อง / อัตราค่าน้ำไฟ · ค่าเช่าในสัญญา = ตัวเลขใน Excel รายห้อง
+  - จับคู่ห้องด้วยเลขห้องเท่านั้น ไม่ค้นหรือรวมผู้เช่าด้วยชื่อ · ห้องที่มีสัญญา ACTIVE อยู่แล้ว = ไม่แตะ
+  - ไม่เขียน leases.parking_fee (ค่าจอดคิดจากตารางรถ 012 ที่เดียว)
+  - มิเตอร์ = เลขเดือนล่าสุด ลงตามที่เห็นแม้ดูผิด · ว่าง/อ่านไม่ได้ = 0 (รอจดใหม่) · ลดลง = warning 'DECREASE'
 
 ไม่ติดตั้งแพ็กเกจเพิ่ม (ใช้ openpyxl ที่มีอยู่) · ไม่ต่อฐานข้อมูล · ไม่ใช้คีย์ใด ๆ
-ข้อมูลส่วนตัว (ชื่อ เลขบัตร เบอร์ ที่อยู่) ไปอยู่ในไฟล์ SQL ที่ --emit-sql เท่านั้น ไม่ออกหน้าจอ/รายงาน
+ข้อมูลส่วนตัว (ชื่อ เลขบัตร เบอร์ ที่อยู่) อยู่ในไฟล์ IMPORT เท่านั้น ไม่ออกหน้าจอ/รายงาน/ไฟล์ ROLLBACK
 """
 from __future__ import annotations
 
 import argparse
-import csv
 import datetime as dt
 import json
 import re
@@ -33,8 +39,18 @@ SKIP_ROOMS = {"701", "702"}
 DEFAULT_VACANT = ("302 303 305 309 312 316 401 402 403 407 411 413 414 "
                   "503 504 505 506 507 510 513 601 602 604 605 606 608 609 610 611 612 613 614").split()
 
+# ห้องที่ตัดสินแล้ว: Excel ห้ามเปลี่ยนประเภท/สถานะ และไม่สร้างสัญญา (ลงเฉพาะมิเตอร์) · 108A ไม่อยู่ใน Excel และไม่อยู่ใน 82 ห้อง
+DECIDED_ROOMS = {
+    "102": "ร้าน Moon & Sun (ไม่ใช่ห้องพัก)",
+    "103": "รายเดือน 2,000",
+    "104": "รายวัน Airbnb", "105": "รายวัน Airbnb",
+    "106": "ห้องเก็บของ (ไม่ใช่ห้องพัก)",
+    "107": "ครอบครัวพี่ไอซ์", "108": "ครอบครัวพี่ไอซ์", "109": "ครอบครัวพี่ไอซ์", "110": "ครอบครัวพี่ไอซ์",
+    "208": "ห้องพนักงาน Luminary",
+}
+
 OCC_TYPES = {"TENANT", "STAFF", "OWNER_FAMILY"}
-RATE_KEYS = ("elec_rate", "elec_min_units", "water_rate", "water_min_units")
+LOG = "bs_import.log_20261127"  # บันทึกว่าไฟล์ IMPORT ใส่/เปลี่ยนอะไร (มีแต่ id กับสถานะเดิม) · อยู่นอก schema public
 
 
 # ---------------------------------------------------------------- helpers
@@ -52,6 +68,11 @@ def q(v) -> str:
     return "'" + s.replace("'", "''") + "'"
 
 
+def qlist(items) -> str:
+    """array[...]::text[] (ว่างได้)"""
+    return "array[" + ",".join(q(i) for i in items) + "]::text[]"
+
+
 def cell_str(v) -> str | None:
     if v is None:
         return None
@@ -65,9 +86,10 @@ def to_num(v):
     if v is None or (isinstance(v, str) and not v.strip()):
         return None
     try:
-        return Decimal(str(v).replace(",", "").strip())
+        n = Decimal(str(v).replace(",", "").strip())
     except InvalidOperation:
         return "BAD"
+    return n if n.is_finite() else "BAD"
 
 
 def to_date(v, be_auto=True):
@@ -100,14 +122,15 @@ def col_idx(letter: str) -> int:
     return n
 
 
-def room_floor(room: str) -> int:
-    return int(room[0])
-
-
 def split_list(s: str | None) -> list[str]:
     if not s:
         return []
     return [p.strip() for p in re.split(r"[;\n]", s) if p.strip()]
+
+
+def nat_key(room: str):
+    m = re.match(r"(\d+)(.*)", room)
+    return (int(m.group(1)), m.group(2)) if m else (10**9, room)
 
 
 # ---------------------------------------------------------------- load
@@ -124,25 +147,10 @@ def load_vacant(arg: str | None) -> set[str]:
     return set(re.findall(r"\d{3}", text))
 
 
-def load_room_types(path: str | None) -> dict[str, str]:
-    if not path:
-        return {}
-    out = {}
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        for r in csv.DictReader(f):
-            rn, rt = (r.get("room_number") or "").strip(), (r.get("room_type") or "").strip()
-            if rn and rt:
-                out[rn] = rt
-    return out
-
-
-def read_workbook(xlsx: Path, m: dict) -> list[dict]:
-    from openpyxl import load_workbook
-    wb = load_workbook(xlsx, read_only=True, data_only=True)
-    ws = wb[m["sheet"]]
-    cols = {k: col_idx(v) for k, v in m["columns"].items() if v}
+def read_sheet(wb, name: str, first_row: int, columns: dict) -> list[dict]:
+    cols = {k: col_idx(v) for k, v in columns.items() if v}
     rows = []
-    for i, row in enumerate(ws.iter_rows(min_row=m["first_data_row"], values_only=True), start=m["first_data_row"]):
+    for i, row in enumerate(wb[name].iter_rows(min_row=first_row, values_only=True), start=first_row):
         def g(key):
             ix = cols.get(key)
             return row[ix - 1] if ix and ix - 1 < len(row) else None
@@ -150,109 +158,120 @@ def read_workbook(xlsx: Path, m: dict) -> list[dict]:
         if not room:
             continue
         rows.append({k: g(k) for k in cols} | {"room": room, "_excel_row": i})
-    wb.close()
     return rows
 
 
+def read_workbook(xlsx: Path, m: dict) -> tuple[list[dict], list[dict]]:
+    """คืน (แถวชีตข้อมูลลูกค้า, แถวชีตค่าใช้จ่าย)"""
+    from openpyxl import load_workbook
+    wb = load_workbook(xlsx, read_only=True, data_only=True)
+    fee = m["fee_sheet"]
+    rows = read_sheet(wb, m["sheet"], m["first_data_row"], m["columns"])
+    fees = read_sheet(wb, fee["sheet"], fee["first_data_row"], fee["columns"])
+    wb.close()
+    return rows, fees
+
+
 # ---------------------------------------------------------------- analyse
-def analyse(rows: list[dict], m: dict, vacant: set[str], room_types: dict[str, str]) -> dict:
+def read_meters(r: dict) -> tuple[dict, list[str]]:
+    """มิเตอร์เดือนล่าสุด: ลงทุกค่า ไม่ข้ามห้อง ไม่เดาแก้ · คืน ({kind: (reading, warning)}, [เหตุที่ต้องจดใหม่])"""
+    meters, flags = {}, []
+    for kind, old_key, new_key in (("ELEC", "elec_old", "elec_new"), ("WATER", "water_old", "water_new")):
+        old, new = to_num(r.get(old_key)), to_num(r.get(new_key))
+        if new is None or new == "BAD" or new < 0:
+            meters[kind] = (Decimal(0), None)
+            flags.append("blank")
+        elif isinstance(old, Decimal) and new < old:
+            meters[kind] = (new, "DECREASE")
+            flags.append("decrease")
+        else:
+            meters[kind] = (new, None)
+    return meters, flags
+
+
+def analyse(rows: list[dict], fees: list[dict], m: dict, vacant: set[str]) -> dict:
     """คืนโครงข้อมูล + รายการขัดกัน (อ้างเลขห้องเท่านั้น)"""
     issues: dict[str, list[str]] = {}
 
     def issue(kind: str, room: str):
         issues.setdefault(kind, []).append(room)
 
+    def index(source: list[dict], label: str) -> tuple[dict, list[str]]:
+        found: dict[str, dict] = {}
+        skipped, dups = [], set()
+        for r in source:
+            room = r["room"]
+            if room in SKIP_ROOMS:
+                skipped.append(room)
+            elif room not in ALL_ROOMS:
+                issue(f"{label}: ห้องไม่อยู่ใน 82 ห้อง", room)
+            elif room in found:
+                issue(f"{label}: เลขห้องซ้ำ (ไม่ใช้ทั้งสองแถว)", room)
+                dups.add(room)
+            else:
+                found[room] = r
+        for room in dups:  # ซ้ำ = ไม่รู้ว่าแถวไหนถูก · ห้ามเดา
+            found.pop(room, None)
+        return found, skipped
+
+    info, skipped = index(rows, "ชีตข้อมูลลูกค้า")
+    fee_by_room, _ = index(fees, "ชีตค่าใช้จ่าย")
+    for room in ALL_ROOMS:
+        if room not in info:
+            issue("ไม่พบห้องในชีตข้อมูลลูกค้า", room)
+
     occ_map = m.get("occupancy_map", {})
     blank_as = m.get("occupancy_blank_as")
     default_common = Decimal(str(m.get("default_common_fee", 200)))
-    seen: dict[str, dict] = {}
-    skipped = []
-    for r in rows:
-        room = r["room"]
-        if room in SKIP_ROOMS:
-            skipped.append(room)
-            continue
-        if room not in ALL_ROOMS:
-            issue("ห้องไม่อยู่ใน 82 ห้อง", room)
-            continue
-        if room in seen:
-            issue("เลขห้องซ้ำในไฟล์", room)
-            continue
-        seen[room] = r
-    for room in ALL_ROOMS:
-        if room not in seen:
-            issue("ไม่พบห้องในไฟล์", room)
-
     data = []
     for room in ALL_ROOMS:
-        r = seen.get(room)
-        if r is None:
+        r = info.get(room, {})
+        meters, flags = read_meters(r) if r else ({}, [])
+        item = {"room": room, "vacant": room in vacant, "decided": room in DECIDED_ROOMS,
+                "lease_ok": False, "rent": None, "meter": meters, "meter_flags": flags}
+        data.append(item)
+        full_name = " ".join(x for x in (cell_str(r.get("first_name")), cell_str(r.get("last_name"))) if x) or None
+        item["has_name"] = bool(full_name)
+        if item["decided"]:
             continue
-        is_vacant = room in vacant
-        first, last = cell_str(r.get("first_name")), cell_str(r.get("last_name"))
-        full_name = " ".join(x for x in (first, last) if x) or None
-        rent = to_num(r.get("rent"))
-        item = {"room": room, "vacant": is_vacant, "full_name": full_name, "lease_ok": False,
-                "meter": {}, "rent": None}
-
-        for key in ("rent", "common_fee", "parking_fee", "deposit", "elec_old", "elec_new", "water_old", "water_new"):
-            if to_num(r.get(key)) == "BAD":
-                issue("ตัวเลขอ่านไม่ได้", room)
-        meter_bad = False
-        for kind, o, n in (("ELEC", "elec_old", "elec_new"), ("WATER", "water_old", "water_new")):
-            old, new = to_num(r.get(o)), to_num(r.get(n))
-            if "BAD" in (old, new):
-                meter_bad = True
-                continue
-            if new is not None and new < 0:
-                issue("มิเตอร์ติดลบ", room)
-                meter_bad = True
-            elif new is not None and old is not None and new < old:
-                issue("มิเตอร์ใหม่ < เก่า (ไม่นำเข้ามิเตอร์ห้องนี้)", room)
-                meter_bad = True
-            elif new is not None:
-                item["meter"][kind] = new
-        if meter_bad:
-            item["meter"] = {}
-
-        if is_vacant:
+        if item["vacant"]:
             if full_name:
-                issue("อยู่ในรายการว่างแต่มีชื่อผู้เช่า", room)
-            if rent not in (None, "BAD") and rent > 0:
-                issue("อยู่ในรายการว่างแต่มีค่าเช่า", room)
-            data.append(item)
+                issue("อยู่ในรายการว่างแต่มีชื่อใน Excel (ถือว่าย้ายออก ไม่นำเข้า)", room)
             continue
-
-        # ห้องที่ไม่ว่าง
         if not full_name:
-            issue("ไม่อยู่ในรายการว่างแต่ไม่มีผู้เช่า", room)
-            data.append(item)
-            continue
+            continue  # มีคนเช่า รอเอกสาร
 
+        fee = fee_by_room.get(room)
+        rent = to_num(fee.get("rent")) if fee else None
+        if not isinstance(rent, Decimal) or rent <= 0:
+            issue("มีชื่อแต่ค่าเช่าเป็น 0/ว่าง/ไม่มีในชีตค่าใช้จ่าย (ไม่สร้างสัญญา)", room)
+            continue
         occ_raw = cell_str(r.get("occupancy"))
         occ = occ_map.get(occ_raw) if occ_raw else blank_as
         if occ not in OCC_TYPES:
             issue("ประเภทการเข้าพักไม่ชัด (ไม่สร้างสัญญา)", room)
-            data.append(item)
             continue
-        company = cell_str(r.get("company"))
-        if occ == "STAFF" and not company:
+        if occ == "STAFF":  # Excel ไม่มีบริษัทต้นสังกัด และ 010 บังคับให้ห้องพนักงานต้องมี
             issue("ห้องพนักงานไม่มีบริษัทต้นสังกัด (ไม่สร้างสัญญา)", room)
-            data.append(item)
             continue
         start = to_date(r.get("start_date"))
         if start in (None, "BAD"):
             issue("วันเริ่มสัญญาไม่มี/อ่านไม่ได้ (ไม่สร้างสัญญา)", room)
-            data.append(item)
             continue
-        if rent == "BAD":
-            data.append(item)
-            continue
+
+        common = to_num(fee.get("common_fee"))
+        if not isinstance(common, Decimal) or common < 0:
+            issue(f"ค่าส่วนกลางว่าง/อ่านไม่ได้ (ใช้ {default_common})", room)
+            common = default_common
 
         idn = cell_str(r.get("id_number"))
         id_type = None
         if idn:
-            id_type = "THAI_ID" if re.fullmatch(r"\d{13}", idn) else "PASSPORT"
+            digits = re.sub(r"[ \-]", "", idn)
+            if re.fullmatch(r"\d{13}", digits):
+                idn, id_type = digits, "THAI_ID"
+            else:
+                id_type = "PASSPORT"
         else:
             issue("ไม่มีเลขบัตร/พาสปอร์ต (ไม่ใส่ tenant_identity)", room)
         bd = to_date(r.get("birth_date"))
@@ -260,164 +279,207 @@ def analyse(rows: list[dict], m: dict, vacant: set[str], room_types: dict[str, s
             bd = None
             issue("วันเกิดอ่านไม่ได้ (ไม่ใส่)", room)
 
-        names, plates = split_list(cell_str(r.get("occupants"))), split_list(cell_str(r.get("plates")))
-        occupants = []
-        for i in range(max(len(names), len(plates))):
-            occupants.append({"name": names[i] if i < len(names) else "(ไม่ระบุชื่อ)",
-                              "plate": plates[i] if i < len(plates) else None})
-
-        def num(key, default=None):
-            v = to_num(r.get(key))
-            return default if v is None or v == "BAD" else v
-
         item.update({
-            "lease_ok": True, "occ": occ, "company": company if occ == "STAFF" or company else None,
+            "lease_ok": True, "occ": occ, "rent": rent,
+            # สัญชาติ (อลิส 2026-11-24): บัตร 13 หลัก = ไทย · อื่น ๆ เว้นว่าง ห้ามเดาประเทศ
             "tenant": {"full_name": full_name, "phone": cell_str(r.get("phone")),
-                       "nationality": cell_str(r.get("nationality")),
+                       "nationality": "TH" if id_type == "THAI_ID" else None,
                        "id_type": id_type, "id_number": idn, "birth_date": bd,
                        "address": cell_str(r.get("address"))},
-            "lease": {"start": start, "rent": num("rent", Decimal(0)),
-                      "common_fee": num("common_fee", default_common),
-                      "parking_fee": num("parking_fee", Decimal(0)),
-                      "deposit": num("deposit", Decimal(0))},
-            "occupants": occupants,
+            "lease": {"start": start, "rent": rent, "common_fee": common},
+            "occupants": split_list(cell_str(r.get("occupants"))),
         })
-        item["rent"] = item["lease"]["rent"]
-        data.append(item)
 
-    no_type = [d["room"] for d in data if d["room"] not in room_types]
-    return {"data": data, "issues": issues, "skipped": sorted(skipped), "no_type": no_type}
+    return {"data": data, "issues": issues, "skipped": sorted(skipped)}
+
+
+def summary(a: dict) -> dict:
+    """ตัวเลขสรุปที่ใช้ทั้งในรายงานและใน SELECT ท้ายไฟล์ IMPORT"""
+    d = a["data"]
+    pick = lambda cond: [x["room"] for x in d if cond(x)]  # noqa: E731
+    return {
+        "total": len(d),
+        "leases": pick(lambda x: x["lease_ok"]),
+        "awaiting": pick(lambda x: not x["decided"] and not x["vacant"] and not x["lease_ok"]),
+        "awaiting_with_name": pick(lambda x: not x["decided"] and not x["vacant"] and not x["lease_ok"] and x["has_name"]),
+        "vacant": pick(lambda x: x["vacant"] and not x["decided"]),
+        "decided": pick(lambda x: x["decided"]),
+        "meter_rooms": pick(lambda x: bool(x["meter"])),
+        "meter_rows": sum(len(x["meter"]) for x in d),
+        "meter_blank": pick(lambda x: "blank" in x["meter_flags"]),
+        "meter_decrease": pick(lambda x: "decrease" in x["meter_flags"]),
+    }
 
 
 # ---------------------------------------------------------------- report
-def report(a: dict, room_types: dict, period) -> str:
-    d = a["data"]
-    vac = [x["room"] for x in d if x["vacant"]]
-    leases = [x for x in d if x["lease_ok"]]
-    by_occ = {t: sum(1 for x in leases if x["occ"] == t) for t in sorted(OCC_TYPES)}
-    meters = sum(1 for x in d if x["meter"])
+def report(a: dict, period) -> str:
+    s = summary(a)
+    rooms = lambda xs: ", ".join(xs) or "-"  # noqa: E731
     L = ["== รายงาน dry-run (เลขห้องเท่านั้น · ไม่มีชื่อ/เลขบัตร/เบอร์) ==",
-         f"ห้องที่เจอ (ใน 82 ห้อง): {len(d)} / 82",
-         f"ห้องที่ข้าม (อ้างอิงเท่านั้น): {', '.join(a['skipped']) or '-'}",
-         f"ห้องว่างตามรายการ: {len(vac)}",
-         f"ห้องมีสัญญา (จะสร้าง tenant+lease): {len(leases)}  " + "  ".join(f"{k}={v}" for k, v in by_occ.items()),
-         f"ห้องที่มีมิเตอร์ตั้งต้น: {meters} (งวด {period or 'ยังไม่กำหนด'})",
-         f"ผลรวมค่าเช่าตามสัญญาที่จะสร้าง: {sum((x['rent'] for x in leases), Decimal(0))}",
-         f"ห้องที่ยังไม่มีแบบห้อง (ไม่ INSERT ห้อง · ใช้แบบห้องที่อยู่ในฐาน): {', '.join(a['no_type']) or '-'}"]
+         f"ห้องทั้งหมด: {s['total']} / 82",
+         f"ห้องที่ข้าม (ไม่ใช่ห้องเช่า): {rooms(a['skipped'])}",
+         f"สัญญาที่จะสร้าง: {len(s['leases'])}",
+         f"ผลรวมค่าเช่าตามสัญญาที่จะสร้าง: {sum((x['rent'] for x in a['data'] if x['lease_ok']), Decimal(0))}",
+         f"ห้อง 'มีคนเช่า รอเอกสาร': {len(s['awaiting'])} -> {rooms(s['awaiting'])}",
+         f"  ในนั้นมีชื่อใน Excel แต่ข้อมูลไม่ครบ: {rooms(s['awaiting_with_name'])}",
+         f"ห้องว่าง: {len(s['vacant'])} -> {rooms(s['vacant'])}",
+         f"ห้องที่ข้ามเพราะตัดสินแล้ว: {len(s['decided'])} -> {rooms(s['decided'])}",
+         f"มิเตอร์ที่ลง: {len(s['meter_rooms'])} ห้อง / {s['meter_rows']} แถว (งวด {period or 'ยังไม่กำหนด'})",
+         f"  รอจดใหม่ - ว่าง/อ่านไม่ได้ (ลงเป็น 0): {rooms(s['meter_blank'])}",
+         f"  รอจดใหม่ - เลขลดลง (ลงตาม Excel + DECREASE): {rooms(s['meter_decrease'])}"]
     if a["issues"]:
         L.append("-- รายการขัดกัน/ผิดปกติ --")
-        for k, rooms in a["issues"].items():
-            L.append(f"* {k}: {', '.join(sorted(set(rooms)))}")
+        for k, rs in a["issues"].items():
+            L.append(f"* {k}: {', '.join(sorted(set(rs), key=nat_key))}")
     else:
         L.append("-- ไม่พบรายการขัดกัน --")
     return "\n".join(L)
 
 
 # ---------------------------------------------------------------- SQL
-def build_sql(a: dict, m: dict, room_types: dict[str, str], period: dt.date) -> str:
-    rates = m.get("rates", {})
-    out = ["-- ไฟล์ SQL นำเข้าข้อมูลบุญใส (สร้างโดย import_excel.py · K-BS-IMPORT.1)",
-           "-- ⚠ มีข้อมูลส่วนตัวจริง: ห้ามส่งต่อ ห้ามเข้า git/แชท · รันแล้วให้ลบไฟล์นี้",
-           "-- รันหลัง 001–011 · รันซ้ำได้ ไม่เพิ่มแถว (อัปเดตตามห้อง/สัญญา ACTIVE ของห้อง)",
-           "begin;", ""]
-    if rates:
-        out.append("-- อัตรา")
-        out.append("insert into public.rate_settings (key, value) values")
-        out.append(",\n".join(f"  ({q(k)}, {q(Decimal(str(rates[k])))})" for k in RATE_KEYS if k in rates))
-        out.append("on conflict (key) do update set value = excluded.value, updated_at = now();\n")
+def price_hash_sql() -> str:
+    """ลายนิ้วมือของทุกอย่างที่มีผลต่อราคาห้อง"""
+    return ("select md5(coalesce(string_agg(x, '|' order by x), '')) from ("
+            "select 'T' || to_jsonb(t)::text as x from public.room_types t "
+            "union all select 'F' || to_jsonb(f)::text from public.floor_prices f "
+            "union all select 'R' || r.room_number || ':' || r.room_type_id::text || ':' || coalesce(r.price_override::text, '') from public.rooms r"
+            ") s")
 
-    companies = sorted({x["company"] for x in a["data"] if x.get("lease_ok") and x.get("company")})
-    if companies:
-        out.append("-- บริษัทต้นสังกัด")
-        out.append("insert into public.companies (name) values")
-        out.append(",\n".join(f"  ({q(c)})" for c in companies))
-        out.append("on conflict (name) do nothing;\n")
 
-    out.append("-- ห้อง: มีแบบห้องในไฟล์จับคู่ = insert/อัปเดตแบบ+สถานะ · ไม่มี = อัปเดตสถานะของห้องที่มีอยู่ในฐานอย่างเดียว")
-    for x in a["data"]:
-        st = "available" if x["vacant"] else "occupied"
-        room = x["room"]
-        if room in room_types:
-            out.append(
-                "insert into public.rooms (room_number, floor, room_type_id, status) "
-                f"select {q(room)}, {room_floor(room)}, t.id, {q(st)}::room_status from public.room_types t where t.name = {q(room_types[room])} "
-                "on conflict (room_number) do update set status = excluded.status, room_type_id = excluded.room_type_id;")
-        else:
-            out.append(f"update public.rooms set status = {q(st)}::room_status where room_number = {q(room)};")
-    out += ["",
-            "do $$ declare v_missing text; v_extra text; begin",
-            "  select string_agg(n, ', ') into v_missing from unnest(array[" + ",".join(q(r) for r in ALL_ROOMS) +
-            "]) n where not exists (select 1 from public.rooms r where r.room_number = n);",
-            "  if v_missing is not null then",
-            "    raise exception 'ห้องเหล่านี้ยังไม่มีในฐาน (ใส่ room_type_map.csv หรือรัน SQL เพิ่มห้องก่อน): %', v_missing;",
-            "  end if;",
-            "  select string_agg(room_number, ', ') into v_extra from public.rooms where room_number <> all(array[" +
-            ",".join(q(r) for r in ALL_ROOMS) + "]);",
-            "  if v_extra is not null then raise notice 'ห้องในฐานที่ไม่อยู่ใน 82 ห้อง (ไม่แตะ): %', v_extra; end if;",
-            "end $$;", ""]
+def price_guard_open() -> str:
+    return f"create temp table _price_before on commit drop as select ({price_hash_sql()}) as h;"
+
+
+def price_guard_close() -> str:
+    return ("do $$ begin\n"
+            f"  if ({price_hash_sql()}) is distinct from (select h from _price_before) then\n"
+            "    raise exception 'หยุด: ราคาห้อง (room_types / floor_prices / rooms) จะเปลี่ยน · ยกเลิกทั้งไฟล์';\n"
+            "  end if;\n"
+            "end $$;")
+
+
+def build_sql(a: dict, period: dt.date) -> str:
+    s = summary(a)
+    out = ["-- IMPORT ผู้เช่าบุญใสจาก Excel (สร้างโดย import_excel.py · K-BS-IMPORT.2)",
+           "-- ⚠ มีข้อมูลส่วนตัวจริง: ห้ามส่งต่อ ห้ามเข้า git/แชท · รันและตรวจเสร็จแล้วให้ลบไฟล์นี้",
+           "-- รันหลัง 001–011 และหลังมีห้องครบ 82 ห้องในตาราง rooms · รันซ้ำได้ ไม่เพิ่มแถว",
+           "begin;", "",
+           "do $$ declare v_missing text; begin",
+           "  if to_regclass('public.leases') is null or to_regclass('public.meter_readings') is null then",
+           "    raise exception 'หยุด: ยังไม่ได้รัน 010_billing.sql';",
+           "  end if;",
+           f"  select string_agg(n, ', ') into v_missing from unnest({qlist(ALL_ROOMS)}) n",
+           "   where not exists (select 1 from public.rooms r where r.room_number = n);",
+           "  if v_missing is not null then",
+           "    raise exception 'หยุด: ห้องเหล่านี้ยังไม่มีในฐาน ต้องเพิ่มห้องก่อน: %', v_missing;",
+           "  end if;",
+           "end $$;", "",
+           price_guard_open(), "",
+           "create schema if not exists bs_import;",
+           "revoke all on schema bs_import from public;",
+           f"create table if not exists {LOG} (kind text not null, ref uuid not null, old_value text, primary key (kind, ref));",
+           f"revoke all on table {LOG} from public;",
+           f"alter table {LOG} enable row level security;", ""]
+
+    out.append("-- สถานะห้อง (ไม่แตะห้องที่ตัดสินแล้ว) · จำสถานะเดิมไว้ให้ ROLLBACK")
+    for status, rs in (("available", s["vacant"]), ("occupied", s["leases"] + s["awaiting"])):
+        out += [f"insert into {LOG} (kind, ref, old_value)",
+                f"  select 'room_status', id, status::text from public.rooms where room_number = any({qlist(rs)}) and status <> '{status}'",
+                "  on conflict (kind, ref) do nothing;",
+                f"update public.rooms set status = '{status}' where room_number = any({qlist(rs)}) and status <> '{status}';"]
+    out.append("")
 
     leases = [x for x in a["data"] if x["lease_ok"]]
     if leases:
         out.append("create temp table _imp (room_number text, full_name text, phone text, nationality text, id_type text, id_number text, "
-                   "birth_date date, address text, start_date date, monthly_rent numeric, common_fee numeric, parking_fee numeric, "
-                   "deposit numeric, occupancy_type text, company_name text, occupants jsonb) on commit drop;")
+                   "birth_date date, address text, start_date date, monthly_rent numeric, common_fee numeric, "
+                   "occupancy_type text, occupants jsonb) on commit drop;")
         vals = []
         for x in leases:
             t, l = x["tenant"], x["lease"]
-            occ_json = json.dumps([{"name": o["name"], "plate": o["plate"]} for o in x["occupants"]], ensure_ascii=False)
+            occ_json = json.dumps(x["occupants"], ensure_ascii=False)
             vals.append("  (" + ", ".join([q(x["room"]), q(t["full_name"]), q(t["phone"]), q(t["nationality"]), q(t["id_type"]),
                                            q(t["id_number"]), q(t["birth_date"]), q(t["address"]), q(l["start"]), q(l["rent"]),
-                                           q(l["common_fee"]), q(l["parking_fee"]), q(l["deposit"]), q(x["occ"]), q(x["company"]),
-                                           q(occ_json) + "::jsonb"]) + ")")
+                                           q(l["common_fee"]), q(x["occ"]), q(occ_json) + "::jsonb"]) + ")")
         out.append("insert into _imp values\n" + ",\n".join(vals) + ";\n")
-        out.append("""do $$
-declare r record; v_room uuid; v_lease uuid; v_tenant uuid; v_company uuid;
+        # $imp$ กันข้อความในข้อมูลชนกับตัวปิดบล็อก · จับคู่ด้วยเลขห้องเท่านั้น
+        out.append(f"""do $imp$
+declare r record; v_room uuid; v_lease uuid; v_tenant uuid;
 begin
-  for r in select * from _imp loop
-    select id into v_room from public.rooms where room_number = r.room_number;
-    v_company := null;
-    if r.company_name is not null then select id into v_company from public.companies where name = r.company_name; end if;
-    v_lease := null; v_tenant := null;
-    select id, tenant_id into v_lease, v_tenant from public.leases where room_id = v_room and status = 'ACTIVE';
-    if v_lease is null then
-      insert into public.tenants (full_name, phone, nationality) values (r.full_name, r.phone, r.nationality) returning id into v_tenant;
-      insert into public.leases (room_id, tenant_id, start_date, monthly_rent, common_fee, parking_fee, deposit, status, occupancy_type, company_id)
-      values (v_room, v_tenant, r.start_date, r.monthly_rent, r.common_fee, r.parking_fee, r.deposit, 'ACTIVE', r.occupancy_type, v_company)
+  for r in select * from _imp order by room_number loop
+    select id into strict v_room from public.rooms where room_number = r.room_number;
+    -- ห้องที่มีสัญญา ACTIVE อยู่แล้ว (รันซ้ำ หรือแอดมินกรอกไว้ก่อน) = ไม่แตะ
+    if exists (select 1 from public.leases where room_id = v_room and status = 'ACTIVE') then continue; end if;
+    insert into public.tenants (full_name, phone, nationality) values (r.full_name, r.phone, r.nationality) returning id into v_tenant;
+    insert into public.leases (room_id, tenant_id, start_date, monthly_rent, common_fee, status, occupancy_type)
+      values (v_room, v_tenant, r.start_date, r.monthly_rent, r.common_fee, 'ACTIVE', r.occupancy_type)
       returning id into v_lease;
-    else
-      update public.tenants set full_name = r.full_name, phone = r.phone, nationality = r.nationality, updated_at = now() where id = v_tenant;
-      update public.leases set start_date = r.start_date, monthly_rent = r.monthly_rent, common_fee = r.common_fee, parking_fee = r.parking_fee,
-             deposit = r.deposit, occupancy_type = r.occupancy_type, company_id = v_company, updated_at = now() where id = v_lease;
-    end if;
+    insert into {LOG} (kind, ref) values ('tenant', v_tenant), ('lease', v_lease);
     if r.id_number is not null then
       insert into public.tenant_identity (tenant_id, id_type, id_number, birth_date, address)
-      values (v_tenant, r.id_type, r.id_number, r.birth_date, r.address)
-      on conflict (tenant_id) do update set id_type = excluded.id_type, id_number = excluded.id_number,
-             birth_date = excluded.birth_date, address = excluded.address, updated_at = now();
+        values (v_tenant, r.id_type, r.id_number, r.birth_date, r.address);
     end if;
-    delete from public.lease_occupants where lease_id = v_lease;
-    insert into public.lease_occupants (lease_id, name, vehicle_plate)
-      select v_lease, o->>'name', o->>'plate' from jsonb_array_elements(r.occupants) o;
+    insert into public.lease_occupants (lease_id, name) select v_lease, o from jsonb_array_elements_text(r.occupants) o;
   end loop;
-end $$;
+end $imp$;
 """)
 
-    mrows = [(x["room"], k, v) for x in a["data"] for k, v in x["meter"].items()]
+    mrows = [(x["room"], k, v, w) for x in a["data"] for k, (v, w) in x["meter"].items()]
     if mrows:
-        out.append(f"-- มิเตอร์ตั้งต้น = เดือนล่าสุดเท่านั้น (งวด {period.isoformat()})")
-        out.append("insert into public.meter_readings (room_id, period, kind, reading)")
-        out.append("select r.id, v.period, v.kind, v.reading from (values")
-        out.append(",\n".join(f"  ({q(rn)}, {q(period)}, {q(k)}, {q(v)})" for rn, k, v in mrows))
-        out.append(") as v(room_number, period, kind, reading) join public.rooms r on r.room_number = v.room_number")
-        out.append("on conflict (room_id, period, kind) where room_id is not null do update set reading = excluded.reading;\n")
+        out.append(f"-- มิเตอร์ตั้งต้น = เดือนล่าสุด (งวด {period.isoformat()}) · มีแถวเดิมอยู่แล้ว = ไม่ทับ")
+        out.append("with ins as (")
+        out.append("  insert into public.meter_readings (room_id, period, kind, reading, warning)")
+        out.append("  select r.id, v.period, v.kind, v.reading, v.warning from (values")
+        out.append(",\n".join(f"    ({q(rn)}, {q(period)}, {q(k)}, {q(v)}::numeric, {q(w)}::text)" for rn, k, v, w in mrows))
+        out.append("  ) as v(room_number, period, kind, reading, warning) join public.rooms r on r.room_number = v.room_number")
+        out.append("  on conflict (room_id, period, kind) where room_id is not null do nothing")
+        out.append("  returning id)")
+        out.append(f"insert into {LOG} (kind, ref) select 'meter', id from ins;\n")
 
-    out += ["-- สรุปหลังรัน (เทียบกับรายงาน dry-run)",
-            "select (select count(*) from public.rooms where room_number = any(array[" + ",".join(q(r) for r in ALL_ROOMS) + "])) as rooms_82,",
-            "       (select count(*) from public.rooms where status = 'available' and room_number = any(array[" + ",".join(q(r) for r in ALL_ROOMS) + "])) as vacant,",
-            "       (select count(*) from public.leases where status = 'ACTIVE') as active_leases,",
-            "       (select count(*) from public.meter_readings where room_id is not null) as meters;",
-            "", "commit;", ""]
+    out += [price_guard_close(), "",
+            "-- ผลนับหลังรัน: คอลัมน์ expected ต้องเท่ากับ actual ทุกแถว (ok = true)",
+            "select item, expected, actual, expected = actual as ok from (values"]
+    count_status = lambda rs, st: f"(select count(*) from public.rooms where room_number = any({qlist(rs)}) and status = '{st}')"  # noqa: E731
+    active = lambda rs: (f"(select count(*) from public.rooms r where r.room_number = any({qlist(rs)}) and r.status = 'occupied' "  # noqa: E731
+                         "and not exists (select 1 from public.leases l where l.room_id = r.id and l.status = 'ACTIVE'))")
+    checks = [
+        ("1 ห้องทั้งหมด", s["total"], f"(select count(*) from public.rooms where room_number = any({qlist(ALL_ROOMS)}))"),
+        ("2 สัญญาที่ไฟล์นี้สร้าง", len(leases), f"(select count(*) from {LOG} g join public.leases l on l.id = g.ref where g.kind = 'lease')"),
+        ("3 ห้องมีคนเช่า รอเอกสาร", len(s["awaiting"]), active(s["awaiting"])),
+        ("4 ห้องว่าง", len(s["vacant"]), count_status(s["vacant"], "available")),
+        ("5 มิเตอร์ที่ลง (แถว)", len(mrows), f"(select count(*) from {LOG} g join public.meter_readings m on m.id = g.ref where g.kind = 'meter')"),
+        ("6 ห้องที่ข้ามเพราะตัดสินแล้ว (ถูกเปลี่ยนสถานะ)", 0,
+         f"(select count(*) from {LOG} g join public.rooms r on r.id = g.ref where g.kind = 'room_status' and r.room_number = any({qlist(s['decided'])}))"),
+    ]
+    out.append(",\n".join(f"  ({q(name)}, {n}::bigint, {sql})" for name, n, sql in checks))
+    out += [") as c(item, expected, actual) order by item;", "", "commit;", ""]
     return "\n".join(out)
+
+
+def build_rollback_sql() -> str:
+    """ลบเฉพาะแถวที่ไฟล์ IMPORT ใส่ + คืนสถานะห้องเดิม · ไม่มีข้อมูลส่วนตัว"""
+    return "\n".join([
+        "-- ROLLBACK ของ IMPORT ผู้เช่าบุญใส (สร้างโดย import_excel.py · K-BS-IMPORT.2)",
+        "-- ลบเฉพาะผู้เช่า/สัญญา/มิเตอร์ที่ IMPORT ใส่ และคืนสถานะห้องเป็นค่าก่อน IMPORT",
+        "-- ⚠ การแก้ข้อมูลแถวเหล่านี้หลัง IMPORT จะหายไปด้วย · ถ้ามีบิลผูกกับสัญญาแล้ว ไฟล์จะหยุดเองและไม่ลบอะไร",
+        "begin;", "",
+        "do $$ begin",
+        f"  if to_regclass('{LOG}') is null then raise exception 'หยุด: ไม่พบบันทึกของ IMPORT (ยังไม่ได้รัน หรือถอยไปแล้ว)'; end if;",
+        "end $$;", "",
+        price_guard_open(), "",
+        f"delete from public.meter_readings where id in (select ref from {LOG} where kind = 'meter');",
+        f"delete from public.leases where id in (select ref from {LOG} where kind = 'lease');",
+        f"delete from public.tenants where id in (select ref from {LOG} where kind = 'tenant');",
+        f"update public.rooms r set status = g.old_value::room_status from {LOG} g where g.kind = 'room_status' and g.ref = r.id;",
+        "",
+        price_guard_close(), "",
+        f"drop table {LOG};",
+        "drop schema bs_import;", "",
+        "select (select count(*) from public.tenants) as tenants_left,",
+        "       (select count(*) from public.leases) as leases_left,",
+        "       (select count(*) from public.meter_readings) as meters_left,",
+        "       (select count(*) from public.rooms where status = 'available') as rooms_available;", "",
+        "commit;", ""])
 
 
 def check_output_path(p: Path):
@@ -447,12 +509,13 @@ def main(argv=None) -> int:
         if hasattr(st, "reconfigure"):
             st.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="นำเข้า Excel บุญใส -> SQL (ดู README_วิธีรัน.md)")
-    ap.add_argument("xlsx", help="ไฟล์ Excel")
+    ap.add_argument("xlsx", help="ไฟล์ Excel (เปิดอ่านอย่างเดียว)")
     ap.add_argument("--map", default=str(HERE / "import_map.json"))
     ap.add_argument("--inspect", action="store_true")
+    ap.add_argument("--dry-run", action="store_true", help="ค่าเริ่มต้นเมื่อไม่ใส่ --emit-sql")
     ap.add_argument("--emit-sql", metavar="PATH")
+    ap.add_argument("--emit-rollback", metavar="PATH")
     ap.add_argument("--vacant", help="รายการห้องว่าง (เลขห้องคั่นด้วยช่องว่าง/คอมมา หรือ path ไฟล์ข้อความ)")
-    ap.add_argument("--room-types", metavar="CSV", help="room_type_map.csv (room_number,room_type)")
     ap.add_argument("--period", help="งวดมิเตอร์ YYYY-MM-01 (แทนค่าใน import_map.json)")
     args = ap.parse_args(argv)
 
@@ -460,9 +523,14 @@ def main(argv=None) -> int:
     if args.inspect:
         inspect(xlsx)
         return 0
+    if args.dry_run and (args.emit_sql or args.emit_rollback):
+        print("--dry-run ใช้ร่วมกับ --emit-sql/--emit-rollback ไม่ได้", file=sys.stderr)
+        return 2
+    if bool(args.emit_sql) != bool(args.emit_rollback):
+        print("ต้องใส่ --emit-sql คู่กับ --emit-rollback เสมอ", file=sys.stderr)
+        return 2
     m = load_map(Path(args.map))
     vacant = load_vacant(args.vacant)
-    room_types = load_room_types(args.room_types)
     period = to_date(args.period or m.get("meter_period"), be_auto=False)
     if period in (None, "BAD") and args.emit_sql:
         print("ต้องกำหนดงวดมิเตอร์ (meter_period ใน import_map.json หรือ --period YYYY-MM-01)", file=sys.stderr)
@@ -470,13 +538,16 @@ def main(argv=None) -> int:
     if period not in (None, "BAD") and period.day != 1:
         print("งวดมิเตอร์ต้องเป็นวันที่ 1 ของเดือน", file=sys.stderr)
         return 2
+    for p in (args.emit_sql, args.emit_rollback):
+        if p:
+            check_output_path(Path(p))
+    a = analyse(*read_workbook(xlsx, m), m, vacant)
+    print(report(a, None if period in (None, "BAD") else period))
     if args.emit_sql:
-        check_output_path(Path(args.emit_sql))
-    a = analyse(read_workbook(xlsx, m), m, vacant, room_types)
-    print(report(a, room_types, None if period in (None, "BAD") else period))
-    if args.emit_sql:
-        Path(args.emit_sql).write_text(build_sql(a, m, room_types, period), encoding="utf-8", newline="\n")
-        print(f"\nเขียนไฟล์ SQL แล้ว: {args.emit_sql}  (มีข้อมูลจริง · รันแล้วลบไฟล์)")
+        Path(args.emit_sql).write_text(build_sql(a, period), encoding="utf-8", newline="\n")
+        Path(args.emit_rollback).write_text(build_rollback_sql(), encoding="utf-8", newline="\n")
+        print(f"\nเขียนไฟล์ IMPORT แล้ว: {args.emit_sql}  (มีข้อมูลจริง · รันแล้วลบไฟล์)")
+        print(f"เขียนไฟล์ ROLLBACK แล้ว: {args.emit_rollback}")
     return 0
 
 
