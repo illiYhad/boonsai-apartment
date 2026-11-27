@@ -47,7 +47,7 @@ class TestImport(unittest.TestCase):
     def test_rent_comes_from_fee_sheet_per_room(self):
         a = analyse()
         got = {x["room"]: int(x["rent"]) for x in a["data"] if x["lease_ok"]}
-        self.assertEqual(got, EXP["leases"])
+        self.assertEqual(got, EXP["leases"] | ie.RENT_OVERRIDE)
 
     def test_rooms_without_lease(self):
         sql = ie.build_sql(analyse(), PERIOD)
@@ -80,6 +80,16 @@ class TestImport(unittest.TestCase):
         self.assertEqual(ie.summary(a)["held"], [])
         self.assertIn("103", imp_rooms(ie.build_sql(a, PERIOD)))
         self.assertNotIn("insert into _skip values", ie.build_sql(a, PERIOD))
+
+    def test_decided_rent_for_103_overrides_excel(self):
+        self.assertEqual(ie.RENT_OVERRIDE, {"103": 2000})
+        self.assertNotEqual(EXP["leases"]["103"], 2000)  # ไฟล์ปลอมมีค่าอื่น จึงพิสูจน์ว่าทับจริง
+        a = analyse()
+        by = {x["room"]: x for x in a["data"]}
+        self.assertEqual(int(by["103"]["lease"]["rent"]), 2000)
+        sql = ie.build_sql(a, PERIOD)
+        self.assertRegex(sql, r"\('103', [^\n]*'2025-\d\d-\d\d'::date, 2000, ")
+        self.assertIn("9 ค่าเช่าที่ตัดสินแล้ว ห้อง 103 = 2,000", sql)
 
     def test_unconfirmed_rooms_never_get_a_status(self):
         a = analyse()

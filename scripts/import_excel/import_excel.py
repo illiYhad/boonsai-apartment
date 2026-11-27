@@ -56,6 +56,9 @@ HELD_ROOMS: dict[str, str] = {}
 KEEP_STATUS_ROOMS = {"302", "303", "305"}
 MISSING_REASON = "ยังไม่มีห้องนี้ในตาราง rooms"
 
+# ค่าเช่าในสัญญาที่พี่หยัดตัดสินแล้ว: ทับค่าจาก Excel เฉพาะห้องในรายการนี้
+RENT_OVERRIDE = {"103": 2000}  # พี่หยัด 2026-11-27 14:18 "ห้อง 103 = 2,000"
+
 OCC_TYPES = {"TENANT", "STAFF", "OWNER_FAMILY"}
 LOG = "bs_import.log_20261127"  # บันทึกว่าไฟล์ IMPORT ใส่/เปลี่ยนอะไร (มีแต่ id กับสถานะเดิม) · อยู่นอก schema public
 
@@ -250,7 +253,7 @@ def analyse(rows: list[dict], fees: list[dict], m: dict, vacant: set[str]) -> di
             continue  # มีคนเช่า รอเอกสาร
 
         fee = fee_by_room.get(room)
-        rent = to_num(fee.get("rent")) if fee else None
+        rent = Decimal(RENT_OVERRIDE[room]) if room in RENT_OVERRIDE else to_num(fee.get("rent")) if fee else None
         if not isinstance(rent, Decimal) or rent <= 0:
             issue("มีชื่อแต่ค่าเช่าเป็น 0/ว่าง/ไม่มีในชีตค่าใช้จ่าย (ไม่สร้างสัญญา)", room)
             continue
@@ -496,6 +499,9 @@ end $imp$;
             "  union all select '7 ห้องที่ข้าม', count(*), count(*), string_agg(room_number, ' ' order by room_number) from _skip",
             "  union all select '8 ตรวจครบ 82 ห้อง (นำเข้า + ข้าม)', "
             f"{len(ALL_ROOMS)}, (select count(*) from p) + (select count(*) from _skip), null",
+            *[f"  union all select '9 ค่าเช่าที่ตัดสินแล้ว ห้อง {x['room']} = {int(x['rent']):,}', {int(x['rent'])}, "
+              f"coalesce((select max(l.monthly_rent) from public.leases l join public.rooms r on r.id = l.room_id where r.room_number = {q(x['room'])} and l.status = 'ACTIVE'), 0), {q(x['room'])}"
+              for x in leases if x["room"] in RENT_OVERRIDE],
             ")",
             "select item, expected::bigint, actual::bigint, expected = actual as ok, coalesce(rooms, '') as rooms from c;",
             "", "commit;", "",
