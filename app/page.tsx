@@ -20,7 +20,7 @@ const pill = "inline-flex min-h-13 items-center gap-2.5 rounded-full px-6 text-[
 const VIDEO: { src: string; poster: string } | null = { src: "/media/boonsai.mp4", poster: "/media/boonsai-poster.jpg" };
 
 // จากเลขาพี่ไอซ์ 2026-10-13 · พี่หยัดยืนยันชั้น 1 + ต้องจองล่วงหน้า · ยังไม่อยู่ใน DB
-const DAILY = { price: 700, floor: 1 };
+const DAILY = { price: 700, floor: 1, rooms: "104–105" }; // 103 เป็นรายเดือนแล้ว (พี่หยัด 2026-11-27 06:17)
 
 // โปสเตอร์ราคาเก่าเอาออก (พี่หยัดสั่ง 2026-11-27 · K-BS-GALLERY.1)
 const GALLERY: GalleryItem[] = [
@@ -220,7 +220,7 @@ export default async function Home() {
                 {fmt(DAILY.price)} <span className="font-sans text-base font-normal text-cb-muted">บาท / วัน</span>
               </div>
               <div className="text-[15px] text-cb-text">
-                ห้องชั้น {DAILY.floor} · พัก 24 ชม. เช็คอินเวลาไหน เช็คเอาท์เวลาเดียวกันของวันถัดไป
+                ห้อง {DAILY.rooms} ชั้น {DAILY.floor} · พัก 24 ชม. เช็คอินเวลาไหน เช็คเอาท์เวลาเดียวกันของวันถัดไป
               </div>
               <div className="text-[15px] font-medium text-cb-muted">จองล่วงหน้า · สอบถามได้ทาง LINE และโทร</div>
             </div>
