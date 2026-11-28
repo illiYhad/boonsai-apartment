@@ -1,0 +1,31 @@
+{
+  "_comment": "แผนคอลัมน์ไฟล์จริง Oct v2.xlsx (อลิส 2026-11-24 08:55) · ค่าว่าง (\"\") = ไม่มีช่องนี้ใน Excel",
+  "sheet": "ข้อมูลลูกค้า",
+  "header_row": 5,
+  "first_data_row": 6,
+  "meter_period": "2026-10-01",
+  "default_common_fee": 200,
+  "occupancy_map": {"ผู้เช่า": "TENANT", "พนักงาน": "STAFF", "ครอบครัวเจ้าของ": "OWNER_FAMILY"},
+  "occupancy_blank_as": "TENANT",
+  "columns": {
+    "room": "A",
+    "first_name": "B",
+    "last_name": "C",
+    "id_number": "D",
+    "birth_date": "E",
+    "phone": "H",
+    "occupants": "I",
+    "address": "J",
+    "start_date": "K",
+    "occupancy": "",
+    "elec_old": "P",
+    "elec_new": "Q",
+    "water_old": "S",
+    "water_new": "T"
+  },
+  "fee_sheet": {
+    "sheet": "ค่าใช้จ่าย",
+    "first_data_row": 3,
+    "columns": {"room": "A", "rent": "L", "common_fee": "M"}
+  }
+}
